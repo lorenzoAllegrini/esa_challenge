@@ -13,6 +13,7 @@ pip install poetry
 git clone https://github.com/continualist/space-ai.git
 cd space-ai
 poetry install
+poetry run pre-commit install
 ```
 
 # NASA Data (SMAP, MSL)
