@@ -14,8 +14,7 @@ __pycache__/
 .vscode/
 manual_labeller.py
 ops_sat*
-nasa*
-experiments/** 
+experiments/**
 datasets/**
 # Ambiente
 .env

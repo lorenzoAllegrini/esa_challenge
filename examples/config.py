@@ -1,4 +1,4 @@
-"""Configuration parameters for the NASA benchmark."""
+"""Configuration parameters for the ESA competition."""
 
 
 class Config:
