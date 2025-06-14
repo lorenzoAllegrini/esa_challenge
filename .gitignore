@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pkl
+*.npy
+*.parquet
+*.csv
+*.zip
+*.so
+*.o
+**.venv
+**.DS_Store
+# VS Code
+.vscode/
+manual_labeller.py
+ops_sat*
+nasa*
+experiments/** 
+datasets/**
+# Ambiente
+.env
