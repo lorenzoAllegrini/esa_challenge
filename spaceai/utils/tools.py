@@ -1,22 +1,18 @@
 import os
 import zipfile
 from typing import (
-    Callable,
-    Literal,
     Optional,
     List,
-    Tuple, 
+    Tuple,
 )
 
 import requests  # type: ignore[import-untyped]
-import torch
 from tqdm import tqdm
 import numpy as np
 
 def download_and_extract_zip(url: str, extract_to: str, cleanup: bool = False):
     filename = download_file(url)
     extract_zip(filename, extract_to, cleanup)
-
 
 def download_file(url: str, to: Optional[str] = None):
     if to is None:
@@ -40,56 +36,12 @@ def download_file(url: str, to: Optional[str] = None):
                 bar.update(len(chunk))
     return local_filename
 
-
 def extract_zip(filename: str, extract_to: str, cleanup: bool = False):
     with zipfile.ZipFile(filename, "r") as zip_ref:
         zip_ref.extractall(extract_to)
 
     if cleanup:
         os.remove(filename)
-
-def seq_collate_fn(
-    n_inputs: int = 2, mode: Literal["batch", "time"] = "batch"
-) -> Callable:
-    """Collate function for sequence data. It stacks sequences of tensors along dim=1.
-
-    Args:
-        n_inputs (int): Number of input tensors to stack (includes the target). Check
-            the `__getitem__` method of the dataset to see the order of tensors.
-        mode (Literal["batch", "time"]): Mode to stack the sequences. If "batch", the
-            sequences are stacked along the batch dimension. If "time", the sequences
-            are stacked along the time dimension.
-
-    Returns:
-        Callable: Collate function for DataLoader.
-    """
-    if mode == "time":
-
-        def collate_fn(batch):
-            """Collate function for sequence data."""
-            inputs = [[] for _ in range(n_inputs)]
-            for item in batch:
-                for i in range(n_inputs):
-                    inputs[i].append(item[i])
-            inputs = [torch.cat(seq, dim=0).unsqueeze(1) for seq in inputs]
-            return inputs
-
-    if mode == "batch":
-
-        def collate_fn(batch):
-            """Collate function for sequence data."""
-            inputs = [[] for _ in range(n_inputs)]
-            for item in batch:
-                for i in range(n_inputs):
-                    inputs[i].append(item[i])
-            inputs = [torch.stack(seq, dim=1) for seq in inputs]
-            return inputs
-
-    return collate_fn
-
-
-    
-
 
 def _compute_valid_gaps(total_len: int, invalid_masks: List[Tuple[int, int]], mask_len: int) -> List[Tuple[int, int]]:
     """Return sorted list of gaps (start, end) able to fit `mask_len`."""
@@ -123,7 +75,6 @@ def all_smart_masks(
             start = g1 - mask_len*(i+1)
             masks.append((start, start + mask_len))
     return masks
-
 
 def sample_smart_masks(
     total_len: int,
@@ -207,7 +158,6 @@ def make_smart_masks(
         cursor -= mask_len
 
     return masks
-
 
 def generate_kfold_masks(
     total_len: int,
