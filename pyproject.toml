@@ -83,3 +83,10 @@ black = true
 testpaths = "tests"
 addopts = "--cov-report=xml --cov-report=term-missing --cov"
 filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.poetry.extras]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-xdist",
+]
