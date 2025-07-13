@@ -218,6 +218,41 @@ class ESACompetitionBenchmark(Benchmark):
         delta: float = 0.05,
         beta: float = 0.3,
     ):
+        """Run the full benchmark workflow for a mission.
+
+        Parameters
+        ----------
+        mission : ESAMission
+            Mission object describing the dataset structure.
+        search_cv_factory, search_cv_factory2, search_cv_factory3 : Any
+            Callables returning configured hyperparameter search objects.
+        callbacks : list[Callback] | None
+            Optional list of callbacks executed during training.
+        call_every_ms : int, default 100
+            Interval for callback execution.
+        perc_eval2 : float, default 0.2
+            Portion of data reserved for the second evaluation split.
+        perc_eval1 : float, default 0.2
+            Portion of data reserved for the first evaluation split.
+        perc_shapelet : float, default 0.1
+            Fraction of data used to mine shapelets.
+        external_estimators : int, default 2
+            Number of outer ensemble models.
+        internal_estimators : int, default 5
+            Number of models trained inside each ensemble member.
+        final_estimators : int, default 3
+            Number of folds for the final ensemble.
+        peak_height : float, default 0.5
+            Height threshold for anomaly peak detection.
+        buffer_size : int, default 100
+            Size of the buffer around detected peaks.
+        flat : bool, default True
+            Whether to feed flat features to the models.
+        skip_channel_training : bool, default False
+            If True, reuses previously computed channel models.
+        gamma, delta, beta : float
+            Parameters for group activation features.
+        """
         source_folder = os.path.join(self.data_root, mission.inner_dirpath)
         meta = pd.read_csv(os.path.join(source_folder, "channels.csv")).assign(
             Channel=lambda d: d.Channel.str.strip()
@@ -599,6 +634,30 @@ class ESACompetitionBenchmark(Benchmark):
         callbacks: Optional[List[Callback]] = None,
         call_every_ms: int = 100,
     ):
+        """Tune a model for a specific channel using CV.
+
+        Parameters
+        ----------
+        train_channel : Any
+            Dataframe of segment features.
+        train_anomalies : list[tuple[int, int]]
+            Intervals denoting anomalous regions.
+        search_cv : Any
+            Pre-configured hyper-parameter search instance.
+        run_id : str
+            Identifier used to store search history.
+        channel_id : str
+            Channel identifier for caching.
+        callbacks : list[Callback] | None, optional
+            Optional callbacks to execute during search.
+        call_every_ms : int, default 100
+            Callback polling interval.
+
+        Returns
+        -------
+        Tuple[Any, float]
+            The fitted estimator and its CV score.
+        """
         warnings.filterwarnings("ignore", category=FitFailedWarning)
         # prepara directory & JSON
         sel_dir = os.path.join(

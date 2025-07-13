@@ -1,30 +1,9 @@
-
-import os 
-import sys 
-import pandas as pd
-import numpy as np
-import ast 
-import math
-import random 
+import ast
 import itertools
-from sktime.transformations.panel.rocket import Rocket
-from spaceai.segmentators.shapelet_miner import ShapeletMiner
-from spaceai.data.esa import ESA
-from scipy.stats import kurtosis, skew
-
-from spaceai.segmentators.cython_functions import compute_spectral_centroid, calculate_slope, spearman_correlation, apply_transformations_to_channel_cython, stft_spectral_std, moving_average_error
-
-from spaceai.segmentators.functions import (
-    spectral_energy,
-    autoregressive_deviation,
-    moving_average_prediction_error,
-    stft_spectral_std,
-    calculate_slope,
-    spearman_correlation,
-    mann_kendall_test_tau,
-    diff_peaks,
-    diff_var
-)
+import math
+import os
+import random
+import sys
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -33,9 +12,47 @@ from typing import (
     Optional,
     Tuple,
 )
-import more_itertools as mit 
+
+import more_itertools as mit
+import numpy as np
+import pandas as pd
+from scipy.stats import (
+    kurtosis,
+    skew,
+)
+from sktime.transformations.panel.rocket import Rocket
+
+from spaceai.data.esa import ESA
+from spaceai.segmentators.cython_functions import (
+    apply_transformations_to_channel_cython,
+    calculate_slope,
+    compute_spectral_centroid,
+    moving_average_error,
+    spearman_correlation,
+    stft_spectral_std,
+)
+from spaceai.segmentators.functions import (
+    autoregressive_deviation,
+    calculate_slope,
+    diff_peaks,
+    diff_var,
+    mann_kendall_test_tau,
+    moving_average_prediction_error,
+    spearman_correlation,
+    spectral_energy,
+    stft_spectral_std,
+)
+from spaceai.segmentators.shapelet_miner import ShapeletMiner
+
 
 class EsaDatasetSegmentator2:
+    """Segment ESA channels and compute feature windows.
+
+    The segmentator applies a list of transformations on fixed-size windows of
+    the channel data, optionally pooling the results and adding shapelet-based
+    convolutions. Results are cached on disk in Parquet format and reloaded on
+    subsequent calls.
+    """
 
     available_transformations = {
         "se": spectral_energy,
@@ -46,23 +63,18 @@ class EsaDatasetSegmentator2:
         "slope": calculate_slope,
         "sp_correlation": spearman_correlation,
         "mk_tau": mann_kendall_test_tau,
-        "mean" : np.mean,
-        "var" : np.var,
-        "std" : np.std,
-        "kurtosis" : kurtosis,
-        "skew" : skew,
-        "diff_peaks" : diff_peaks,
-        "diff_var" : diff_var,
+        "mean": np.mean,
+        "var": np.var,
+        "std": np.std,
+        "kurtosis": kurtosis,
+        "skew": skew,
+        "diff_peaks": diff_peaks,
+        "diff_var": diff_var,
         "median": np.median,
         "min": np.min,
-        "max": np.max
-    }
-    available_poolings = {
         "max": np.max,
-        "min": np.min,
-        "mean": np.mean,
-        "std": np.std
     }
+    available_poolings = {"max": np.max, "min": np.min, "mean": np.mean, "std": np.std}
 
     def __init__(
         self,
@@ -75,20 +87,17 @@ class EsaDatasetSegmentator2:
         save_csv: bool = True,
         telecommands: bool = False,
         poolings: str = ["max", "min"],
-        pooling_config: Optional[Dict[str, Dict[str,str]]] = 
-            {
+        pooling_config: Optional[Dict[str, Dict[str, str]]] = {
             "event": {"max": "event"},
             "start": {"min": "start"},
-            "end": {"max": "end"}
-            },
+            "end": {"max": "end"},
+        },
         pooling_segment_len: int = 20,
         pooling_segment_stride: int = 20,
         use_shapelets: bool = True,
-        step_difference_feature: bool = True
-        
-        
+        step_difference_feature: bool = True,
     ) -> None:
-        
+
         for transformation in transformations:
             if transformation not in self.available_transformations:
                 raise RuntimeError(f"Transformation {transformation} not available")
@@ -111,7 +120,31 @@ class EsaDatasetSegmentator2:
         self.use_shapelets = use_shapelets
         self.step_difference_feature = step_difference_feature
 
-    def segment(self, esa_channel: ESA, masks: List[Tuple[int,int]], ensemble_id:str, train_phase=False):
+    def segment(
+        self,
+        esa_channel: ESA,
+        masks: List[Tuple[int, int]],
+        ensemble_id: str,
+        train_phase: bool = False,
+    ):
+        """Generate segments and features for a channel.
+
+        Parameters
+        ----------
+        esa_channel : ESA
+            Channel to segment and transform.
+        masks : list[tuple[int, int]]
+            Time intervals to skip when generating segments.
+        ensemble_id : str
+            Identifier used to save/reload cached segments.
+        train_phase : bool, default=False
+            Whether we are generating features for the training split.
+
+        Returns
+        -------
+        Tuple[pd.DataFrame, list[tuple[int, int]]]
+            The dataframe of segments and the list of anomaly intervals.
+        """
         masks = sorted(masks, key=lambda iv: iv[0])
         output_dir = os.path.join(
             self.exp_dir, self.run_id, "channel_segments", esa_channel.channel_id
@@ -119,15 +152,15 @@ class EsaDatasetSegmentator2:
         os.makedirs(output_dir, exist_ok=True)
 
         # usa .parquet invece di .csv
-        pq_name  = f"{ensemble_id}.parquet"
-        pq_path  = os.path.join(output_dir, pq_name)
+        pq_name = f"{ensemble_id}.parquet"
+        pq_path = os.path.join(output_dir, pq_name)
         # se il file Parquet esiste già, caricalo e torna i segmenti
         if os.path.exists(pq_path):
             df = pd.read_parquet(pq_path)
-            
+
             segments = df.values.tolist()
             anomalies = self.get_event_intervals(segments, label=1)
-    
+
         else:
             segments: List[List[float]] = apply_transformations_to_channel_cython(
                 self,
@@ -140,8 +173,8 @@ class EsaDatasetSegmentator2:
 
             if self.step_difference_feature:
                 mean_idx = base_columns.index("mean")
-                max_idx  = base_columns.index("max")
-                min_idx  = base_columns.index("min")
+                max_idx = base_columns.index("max")
+                min_idx = base_columns.index("min")
 
                 # ------------------------------------------------------------
                 # 2) calcolo delle differenze per n = 1 … 5
@@ -150,54 +183,55 @@ class EsaDatasetSegmentator2:
                     for n in range(1, 6):
                         if i >= n:
                             diff_mean = row[mean_idx] - segments[i - n][mean_idx]
-                            diff_max  = row[max_idx]  - segments[i - n][max_idx]
-                            diff_min  = row[min_idx]  - segments[i - n][min_idx]
+                            diff_max = row[max_idx] - segments[i - n][max_idx]
+                            diff_min = row[min_idx] - segments[i - n][min_idx]
                         else:
                             diff_mean = diff_max = diff_min = 0.0
 
                         # aggiungi le tre nuove feature alla fine della riga
-                        row.append(diff_mean)   # step difference (mean)
-                        row.append(diff_max)    # maximum difference
-                        row.append(diff_min)    # minimum difference
+                        row.append(diff_mean)  # step difference (mean)
+                        row.append(diff_max)  # maximum difference
+                        row.append(diff_min)  # minimum difference
 
                 # ------------------------------------------------------------
                 # 3) aggiorna base_columns in modo coerente
                 # ------------------------------------------------------------
                 for n in range(1, 6):
-                    base_columns.append(f"step_difference_{n}")       # mean
-                    base_columns.append(f"maximum_difference_{n}")    # max
-                    base_columns.append(f"minimum_difference_{n}")    # min
+                    base_columns.append(f"step_difference_{n}")  # mean
+                    base_columns.append(f"maximum_difference_{n}")  # max
+                    base_columns.append(f"minimum_difference_{n}")  # min
 
             if self.telecommands:
-                base_columns += [f"telecommand_{i}" for i in range(1, esa_channel.data.shape[1])]
+                base_columns += [
+                    f"telecommand_{i}" for i in range(1, esa_channel.data.shape[1])
+                ]
             if self.use_shapelets:
                 for i in range(self.shapelet_miner.num_kernels):
                     base_columns += [
                         f"kernel_{i}_max_convolution",
-                        f"kernel_{i}_min_convolution"
+                        f"kernel_{i}_min_convolution",
                     ]
 
             if self.poolings:
-                segments, pooled_columns = self.pooling_segmentation(segments, base_columns)
+                segments, pooled_columns = self.pooling_segmentation(
+                    segments, base_columns
+                )
             else:
                 pooled_columns = base_columns
-                
+
             anomalies = self.get_event_intervals(segments, label=1)
             df = pd.DataFrame(segments, columns=pooled_columns)
 
             # Salvo sempre in Parquet
             df.to_parquet(pq_path, index=False)
-            #print(f"[Segmentator] Saved {len(df)} segments → {pq_path}")
+            # print(f"[Segmentator] Saved {len(df)} segments → {pq_path}")
 
         # Rimuovo i campi interni 'event'
         df = df.drop(columns=df.filter(like="event").columns)
         return df, anomalies
 
-
     def pooling_segmentation(
-        self,
-        segments: List[List[float]],
-        columns:  List[str]
+        self, segments: List[List[float]], columns: List[str]
     ) -> Tuple[List[List[float]], List[str]]:
         """
         Applica rolling‐window pooling per ciascuna feature:
@@ -205,7 +239,7 @@ class EsaDatasetSegmentator2:
         - altrimenti usa tutti i self.poolings con nome "pooling_feat".
         Ritorna (dati_poolati, nomi_colonne_poolate).
         """
-        data = np.array(segments) 
+        data = np.array(segments)
 
         N, F = data.shape
         w, s = self.pooling_segment_len, self.pooling_segment_stride
@@ -223,7 +257,7 @@ class EsaDatasetSegmentator2:
         for start in range(0, N - w + 1, s):
             window = data[start : start + w, :]  # (w, F)
             row = []
-            if np.min(window[:,0], axis=0) == -1:
+            if np.min(window[:, 0], axis=0) == -1:
                 continue
             for j, feat in enumerate(columns):
                 if feat in self.pooling_config:
@@ -236,9 +270,9 @@ class EsaDatasetSegmentator2:
                         row.append(func(window[:, j], axis=0))
             new_segments.append(row)
 
-        return new_segments, new_columns          
-    
-    def get_event_intervals(self, segments: list, label:int) -> list:
+        return new_segments, new_columns
+
+    def get_event_intervals(self, segments: list, label: int) -> list:
         labels = np.array([int(seg[0]) for seg in segments])
         indices = np.where(labels == label)[0]
         if indices.size == 0:
@@ -247,5 +281,3 @@ class EsaDatasetSegmentator2:
 
         intervals = [[group[0], group[-1]] for group in groups]
         return intervals
-
-    
