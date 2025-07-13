@@ -1,48 +1,34 @@
-import os 
 from typing import (
     List,
     Literal,
     Optional,
-    Tuple,
-    Union,
-    Callable,
-    Dict
 )
 
-import torch
-from torch import nn
-
-from torch.utils.data import (
-    TensorDataset,
-    DataLoader,
-    Subset,
-)
-from torch import nn
-from torch import optim
-import matplotlib.pyplot as plt
-from tqdm import tqdm
-from sklearn.preprocessing import StandardScaler
-import torch
-import torch.optim as optim
-from torch.nn import MSELoss
-from .predictors import LSTM
-from spaceai.utils.tools import seq_collate_fn
-from sklearn.base import BaseEstimator, RegressorMixin
-from torch.utils.data import DataLoader
-import torch
-from torch import optim
-from torch.nn import MSELoss, BCEWithLogitsLoss, BCELoss
-from typing import Callable, Optional, Literal, List, Dict, Any
 import numpy as np
+import torch
+from sklearn.base import (
+    BaseEstimator,
+    RegressorMixin,
+)
 from sklearn.preprocessing import StandardScaler
+from torch import (
+    nn,
+    optim,
+)
+from torch.utils.data import (
+    DataLoader,
+    TensorDataset,
+)
+from tqdm import tqdm
 
+from .predictors import LSTM
 
 
 class TverskyLoss(nn.Module):
     def __init__(self, alpha: float = 0.0001, beta: float = 8.0, smooth: float = 1e-6):
         super().__init__()
         self.alpha = alpha
-        self.beta  = beta
+        self.beta = beta
         self.smooth = smooth
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor):
@@ -78,7 +64,7 @@ class LSTMClassifier(BaseEstimator, RegressorMixin):
         washout: int = 0,
         patience: Optional[int] = None,
         epochs: int = 20,
-        seq_len: int = 5
+        seq_len: int = 5,
     ):
         self.input_size = input_size
         self.hidden_sizes = hidden_sizes
@@ -92,7 +78,7 @@ class LSTMClassifier(BaseEstimator, RegressorMixin):
         self.washout = washout
         self.patience = patience
         self.seq_len = seq_len
-        self.scaler = StandardScaler() 
+        self.scaler = StandardScaler()
         self.stateful = False
 
         self.model = LSTM(
@@ -107,18 +93,20 @@ class LSTMClassifier(BaseEstimator, RegressorMixin):
         self.model.build()
 
     def fit(self, train_set, train_labels):
-        #train_set = self.scaler.fit_transform(train_set)
+        # train_set = self.scaler.fit_transform(train_set)
         X, y = [], []
         for i in range(len(train_set) - self.seq_len + 1):
-            X.append(train_set[i:i + self.seq_len])
-            y.append(train_labels[i:i + self.seq_len])
+            X.append(train_set[i : i + self.seq_len])
+            y.append(train_labels[i : i + self.seq_len])
         X = np.array(X)
         y = np.array(y)
         train_loader = DataLoader(
-            TensorDataset(torch.tensor(X, dtype=torch.float32),
-                          torch.tensor(y, dtype=torch.float32)),
+            TensorDataset(
+                torch.tensor(X, dtype=torch.float32),
+                torch.tensor(y, dtype=torch.float32),
+            ),
             batch_size=self.batch_size,
-            shuffle=True
+            shuffle=True,
         )
 
         optimizer = optim.Adam(self.model.model.parameters(), lr=self.learning_rate)
@@ -133,7 +121,7 @@ class LSTMClassifier(BaseEstimator, RegressorMixin):
         )
 
     def predict_proba(self, test_set: np.ndarray) -> np.ndarray:
-        #test_set = self.scaler.transform(test_set)
+        # test_set = self.scaler.transform(test_set)
         if self.model.model is not None:
             self.model.model.eval()
         self.stateful = False  # disattiva stati interni
@@ -148,23 +136,22 @@ class LSTMClassifier(BaseEstimator, RegressorMixin):
         all_logits = []
         with torch.no_grad():
             for x in X:
-                x = x.unsqueeze(0).to(self.device)     # [1, seq_len, D]
-                out = self.model(x)                    # logit o array di logit
+                x = x.unsqueeze(0).to(self.device)  # [1, seq_len, D]
+                out = self.model(x)  # logit o array di logit
                 logit = out.detach().cpu().squeeze().numpy()
                 all_logits.append(logit)
 
-        y_logit = np.array(all_logits).reshape(-1)   # shape: (n_samples,)
+        y_logit = np.array(all_logits).reshape(-1)  # shape: (n_samples,)
 
         # Applica sigmoid per ottenere P(y=1)
-        p1 = 1.0 / (1.0 + np.exp(-y_logit))          # shape: (n_samples,)
+        p1 = 1.0 / (1.0 + np.exp(-y_logit))  # shape: (n_samples,)
 
         # Costruisci la matrice (n_samples, 2): [P(y=0), P(y=1)]
         p0 = 1.0 - p1
-        proba = np.vstack([p0, p1]).T               # shape: (n_samples, 2)
+        proba = np.vstack([p0, p1]).T  # shape: (n_samples, 2)
 
         return proba
-    
+
     def predict(self, test_set: np.ndarray) -> np.ndarray:
         probas = self.predict_proba(test_set)
-        print((probas >= 0.5)[:,1].astype(int))
-        return (probas >= 0.5)[:,1].astype(int)
+        return (probas >= 0.5)[:, 1].astype(int)

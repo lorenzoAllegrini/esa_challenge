@@ -141,7 +141,7 @@ class SequenceModel:
                     outputs = self.model(inputs)
                     outputs, targets = self._apply_washout(outputs, targets)
                     outputs = outputs.squeeze(-1)
-                 
+
                     loss = criterion(outputs, targets)
                     loss.backward()
                     optimizer.step()
@@ -182,7 +182,6 @@ class SequenceModel:
                 pbar.update(1)
                 if patience_before_stopping is not None:
                     if epochs_since_improvement >= patience_before_stopping:
-                        print("Early stopping at epoch %s", epoch)
                         break
         if restore_best:
             self.model.load_state_dict(best_model)
