@@ -47,6 +47,17 @@ class ShapeletMiner:
     def initialize_kernels(
         self, esa_channel: ESA, mask: Tuple[int, int], ensemble_id: str
     ):
+        """Extract and cache candidate shapelets for a channel.
+
+        Parameters
+        ----------
+        esa_channel : ESA
+            Channel from which shapelets are mined.
+        mask : tuple[int, int]
+            Interval of indices to consider for shapelet mining.
+        ensemble_id : str
+            Identifier of the current ensemble; used for caching results.
+        """
         channel_dir = os.path.join(
             self.exp_dir, self.run_id, "channel_segments", esa_channel.channel_id
         )
@@ -166,7 +177,28 @@ class ShapeletMiner:
         with open(shapelets_path, "w") as f:
             json.dump(all_payload, f)
 
-    def score_anomaly_kernels(self, kernels_pool, test_pools, nominal_segments):
+    def score_anomaly_kernels(
+        self,
+        kernels_pool: list[np.ndarray],
+        test_pools: list[np.ndarray],
+        nominal_segments: list[np.ndarray],
+    ) -> tuple[list[np.ndarray], np.ndarray]:
+        """Score kernels extracted from anomalous pools.
+
+        Parameters
+        ----------
+        kernels_pool : list[np.ndarray]
+            Segments belonging to the reference anomaly.
+        test_pools : list[np.ndarray]
+            Pools from other anomalies used as a negative set.
+        nominal_segments : list[np.ndarray]
+            Segments sampled from nominal data.
+
+        Returns
+        -------
+        tuple[list[np.ndarray], np.ndarray]
+            The candidate kernels and their scores.
+        """
         raw_kernels = []
         for k in range(self.k_min_length, self.k_max_length + 1):
             kernels = self.extract_kernels_from_data(kernels_pool, k)
@@ -215,9 +247,21 @@ class ShapeletMiner:
         scores: np.ndarray,
         num_kernels: int | None = None,
     ) -> list[np.ndarray]:
-        """
-        Restituisce al massimo `num_kernels` kernel con score più alti,
-        garantendo una minima diversità di lunghezze.
+        """Select the top ``num_kernels`` by score ensuring diversity.
+
+        Parameters
+        ----------
+        kernels : list[np.ndarray]
+            Candidate kernels extracted from the data.
+        scores : np.ndarray
+            Score associated with each kernel.
+        num_kernels : int | None, optional
+            Number of kernels to keep. Defaults to ``self.num_kernels``.
+
+        Returns
+        -------
+        list[np.ndarray]
+            The selected kernels ordered by decreasing score.
         """
         if num_kernels is None:
             num_kernels = self.num_kernels
