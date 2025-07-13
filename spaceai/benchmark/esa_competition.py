@@ -1,7 +1,5 @@
-
 from __future__ import annotations
 
-import logging
 import os
 from typing import (
     TYPE_CHECKING,
@@ -10,12 +8,13 @@ from typing import (
     List,
     Optional,
     Tuple,
-    Literal,
-    Callable
 )
 
 import numpy as np
 import pandas as pd
+from sklearn.base import clone
+from sklearn.model_selection import cross_validate
+from skopt.space import Dimension
 from torch.utils.data import (
     DataLoader,
     Subset,
@@ -30,37 +29,40 @@ from spaceai.utils.callbacks import (
     Callback,
     CallbackHandler,
 )
-from spaceai.utils.tools import make_smart_masks, generate_kfold_masks, sample_smart_masks
-from sklearn.base import clone
-from sklearn.model_selection import cross_validate
-from skopt.space import Dimension
+from spaceai.utils.tools import (
+    generate_kfold_masks,
+    make_smart_masks,
+    sample_smart_masks,
+)
 
 if TYPE_CHECKING:
     from spaceai.models.predictors import SequenceModel
     from spaceai.models.anomaly import AnomalyDetector
     from spaceai.models.anomaly_classifier import AnomalyClassifier
 
+import hashlib
+import json
+import random
+import warnings
+
+import more_itertools as mit
+from scipy.signal import find_peaks
+from sklearn.dummy import DummyClassifier
+from sklearn.exceptions import FitFailedWarning
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import make_scorer
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.preprocessing import (
+    QuantileTransformer,
+    StandardScaler,
+)
 from tqdm import tqdm
-from .benchmark import Benchmark
 
 ###aggiunti questi
 from spaceai.segmentators.esa_segmentator2 import EsaDatasetSegmentator2
-import more_itertools as mit
-from sklearn.preprocessing import StandardScaler
-import json
-from scipy.signal import find_peaks
-from sklearn.linear_model import LogisticRegression
 from spaceai.segmentators.shapelet_miner import ShapeletMiner
-import hashlib
-import random
-from sklearn.exceptions import FitFailedWarning
-import warnings
-from sklearn.dummy import DummyClassifier
-from sklearn.preprocessing import QuantileTransformer
-from functools import partial
-from sklearn.model_selection import TimeSeriesSplit
-import more_itertools as mit
-from sklearn.metrics import make_scorer
+
+from .benchmark import Benchmark
 
 
 def make_esa_scorer(benchmark):
@@ -70,9 +72,13 @@ def make_esa_scorer(benchmark):
         groups = [list(group) for group in mit.consecutive_groups(indices)]
         true_anomalies = [[group[0], group[-1]] for group in groups]
         res = benchmark.compute_classification_metrics(true_anomalies, pred_anomalies)
-        esa_res = benchmark.compute_esa_classification_metrics(res, true_anomalies, pred_anomalies, len(y_true))
+        esa_res = benchmark.compute_esa_classification_metrics(
+            res, true_anomalies, pred_anomalies, len(y_true)
+        )
         return esa_res["precision_corrected"]
+
     return make_scorer(scorer, greater_is_better=True)
+
 
 class ESACompetitionBenchmark(Benchmark):
 
@@ -81,9 +87,9 @@ class ESACompetitionBenchmark(Benchmark):
         run_id: str,
         exp_dir: str,
         segmentator: Optional[EsaDatasetSegmentator2],
-        data_root: str = "datasets", 
-        id_offset = 14728321,
-        seed: int = 42
+        data_root: str = "datasets",
+        id_offset=14728321,
+        seed: int = 42,
     ):
         """Initializes a new ESA Competition benchmark run.
 
@@ -111,8 +117,8 @@ class ESACompetitionBenchmark(Benchmark):
         gamma: float = 1.8,
         eps: float = 1e-6,
         delta: float = 0.05,
-        beta: float = 0.5,   
-        alpha: float = 1.5,       # bonus per i canali extra
+        beta: float = 0.5,
+        alpha: float = 1.5,  # bonus per i canali extra
     ) -> pd.DataFrame:
         """
         Costruisce colonne "group_{gid}" con la regola:
@@ -130,7 +136,7 @@ class ESACompetitionBenchmark(Benchmark):
         """
         out = pd.DataFrame(index=df.index)
         min_val = 1e-6
-        beta = max(0.0, min(beta, 1.0))            # mantieni β in [0,1]
+        beta = max(0.0, min(beta, 1.0))  # mantieni β in [0,1]
 
         for gid, ch_list in group_map.items():
             chs = [c for c in ch_list if c in df.columns and c.startswith("channel_")]
@@ -138,7 +144,9 @@ class ESACompetitionBenchmark(Benchmark):
                 continue
 
             # pesi dai cv-score
-            w = (np.array([cv_score.get(c, 0.0) for c in chs], dtype=float) + eps) ** alpha
+            w = (
+                np.array([cv_score.get(c, 0.0) for c in chs], dtype=float) + eps
+            ) ** alpha
 
             # matrice probabilità
             P = df[chs].to_numpy()
@@ -147,11 +155,11 @@ class ESACompetitionBenchmark(Benchmark):
             P_adj = np.minimum(P + (P > 0.5) * delta, 1.0)
 
             # F = (P_adj)^gamma   (θ rimosso)
-            F = P_adj ** gamma
+            F = P_adj**gamma
 
-            contrib = F * w          # contributi pesati
+            contrib = F * w  # contributi pesati
             max_val = contrib.max(axis=1)
-            bonus   = (contrib.sum(axis=1) - max_val) * beta
+            bonus = (contrib.sum(axis=1) - max_val) * beta
 
             A = np.maximum(max_val + bonus, min_val)
             out[f"group_{gid}"] = A
@@ -163,7 +171,7 @@ class ESACompetitionBenchmark(Benchmark):
         df: pd.DataFrame,
         base_prefix: str = "channel_",
         k: int = 3,
-        stride: int = 1
+        stride: int = 1,
     ) -> pd.DataFrame:
         # 1) individua le colonne channel_…
         cols = [c for c in df.columns if c.startswith(base_prefix)]
@@ -187,7 +195,7 @@ class ESACompetitionBenchmark(Benchmark):
         # 4) togli le colonne originali e metti quelle poolate
         df_no_channels = df.drop(cols, axis=1)
         return pd.concat([df_no_channels, pool_df], axis=1)
-    
+
     def run(
         self,
         mission: ESAMission,
@@ -206,25 +214,31 @@ class ESACompetitionBenchmark(Benchmark):
         buffer_size: int = 100,
         flat: bool = True,
         skip_channel_training: bool = False,
-        gamma: float = 1.5,   
-        delta: float = 0.05,     
-        beta: float = 0.3,      
+        gamma: float = 1.5,
+        delta: float = 0.05,
+        beta: float = 0.3,
     ):
         source_folder = os.path.join(self.data_root, mission.inner_dirpath)
-        meta  = pd.read_csv(os.path.join(source_folder, "channels.csv")).assign(
-                    Channel=lambda d: d.Channel.str.strip())
-        groups = (meta[meta["Channel"].isin(mission.target_channels)]
-                  .groupby("Group")["Channel"].apply(list)
-                  .to_dict())
+        meta = pd.read_csv(os.path.join(source_folder, "channels.csv")).assign(
+            Channel=lambda d: d.Channel.str.strip()
+        )
+        groups = (
+            meta[meta["Channel"].isin(mission.target_channels)]
+            .groupby("Group")["Channel"]
+            .apply(list)
+            .to_dict()
+        )
 
-        train_channel, challenge_channel = self.load_channel(mission, "channel_12", overlapping_train=True)
+        train_channel, challenge_channel = self.load_channel(
+            mission, "channel_12", overlapping_train=True
+        )
         total_len = len(train_channel.data)
         masks1 = make_smart_masks(
             total_len=total_len,
-            invalid_masks=[], 
+            invalid_masks=[],
             mask_len=int(perc_eval1 * total_len),
             n_masks=final_estimators,
-            rng=self.rng
+            rng=self.rng,
         )
         binary_predictions = []
         challenge_probas = []
@@ -240,65 +254,71 @@ class ESACompetitionBenchmark(Benchmark):
             if skip_channel_training:
                 # 1a) carica cv_scores per questo fold
                 cv_csv = os.path.join(feat_dir, f"cv_scores_fold{fold_idx:02d}.csv")
-                df_cv = pd.read_csv(cv_csv)   # colonne: "channel","cv_score"
+                df_cv = pd.read_csv(cv_csv)  # colonne: "channel","cv_score"
                 channel_cv = dict(zip(df_cv["channel"], df_cv["cv_score"]))
 
                 global_train_csv = os.path.join(
                     feat_dir, f"train_ensemble_probas_{mask_run_id}.csv"
                 )
-                global_test_csv  = os.path.join(
+                global_test_csv = os.path.join(
                     feat_dir, f"test_ensemble_probas_{mask_run_id}.csv"
                 )
 
                 # ora leggi i DataFrame veri
-                final_train      = pd.read_csv(global_train_csv)
-                challenge_test   = pd.read_csv(global_test_csv)
+                final_train = pd.read_csv(global_train_csv)
+                challenge_test = pd.read_csv(global_test_csv)
 
             else:
                 final_train = None
                 challenge_test = None
-                channel_cv = {}    
+                channel_cv = {}
                 for channel_id in mission.target_channels:
-                    if int(channel_id.split("_")[1]) < 41 or int(channel_id.split("_")[1]) > 48:
+                    if (
+                        int(channel_id.split("_")[1]) < 41
+                        or int(channel_id.split("_")[1]) > 48
+                    ):
                         continue
-                    train_channel, challenge_channel = self.load_channel(mission, channel_id, overlapping_train=True)
-                    final_train, challenge_test, channel_score = self.channel_specific_ensemble(
-                        train_channel=train_channel,
-                        challenge_channel=challenge_channel,
-                        mask1=mask1,
-                        channel_id=channel_id,
-                        search_cv_factory=search_cv_factory,
-                        search_cv_factory2=search_cv_factory2,
-                        callbacks=callbacks,
-                        call_every_ms=call_every_ms,
-                        perc_eval2 = perc_eval2,
-                        perc_shapelet = perc_shapelet,
-                        external_estimators = external_estimators,
-                        internal_estimators = internal_estimators
+                    train_channel, challenge_channel = self.load_channel(
+                        mission, channel_id, overlapping_train=True
                     )
-                    channel_cv[channel_id] = channel_score 
+                    final_train, challenge_test, channel_score = (
+                        self.channel_specific_ensemble(
+                            train_channel=train_channel,
+                            challenge_channel=challenge_channel,
+                            mask1=mask1,
+                            channel_id=channel_id,
+                            search_cv_factory=search_cv_factory,
+                            search_cv_factory2=search_cv_factory2,
+                            callbacks=callbacks,
+                            call_every_ms=call_every_ms,
+                            perc_eval2=perc_eval2,
+                            perc_shapelet=perc_shapelet,
+                            external_estimators=external_estimators,
+                            internal_estimators=internal_estimators,
+                        )
+                    )
+                    channel_cv[channel_id] = channel_score
                 df_cv = pd.DataFrame(
-                    list(channel_cv.items()),
-                    columns=["channel", "cv_score"]
+                    list(channel_cv.items()), columns=["channel", "cv_score"]
                 )
-                cv_csv = os.path.join(
-                    feat_dir, 
-                    f"cv_scores_fold{fold_idx:02d}.csv"
-                )
+                cv_csv = os.path.join(feat_dir, f"cv_scores_fold{fold_idx:02d}.csv")
                 df_cv.to_csv(cv_csv, index=False)
 
+            # final_train  = self.add_pooling_features(final_train, k=5, stride=1)
+            # challenge_test = self.add_pooling_features(challenge_test,  k=5, stride=1)
+            final_train = self.add_group_activation(
+                final_train, groups, channel_cv, gamma=gamma, delta=delta, beta=beta
+            )
+            challenge_test = self.add_group_activation(
+                challenge_test, groups, channel_cv
+            )
 
-            #final_train  = self.add_pooling_features(final_train, k=5, stride=1)
-            #challenge_test = self.add_pooling_features(challenge_test,  k=5, stride=1)
-            final_train = self.add_group_activation(final_train, groups, channel_cv, gamma=gamma, delta=delta, beta=beta)
-            challenge_test = self.add_group_activation(challenge_test, groups, channel_cv)
-            
             feat_dir = os.path.join(self.exp_dir, self.run_id, "fold_features")
             os.makedirs(feat_dir, exist_ok=True)
 
             # nome file distinguendo il fold corrente
             train_csv = os.path.join(feat_dir, f"fold{fold_idx:02d}_train_feats.csv")
-            test_csv  = os.path.join(feat_dir, f"fold{fold_idx:02d}_challenge_feats.csv")
+            test_csv = os.path.join(feat_dir, f"fold{fold_idx:02d}_challenge_feats.csv")
 
             # ------------------------------------------------------------
             # salva
@@ -306,54 +326,58 @@ class ESACompetitionBenchmark(Benchmark):
             final_train.to_csv(train_csv, index=False)
             challenge_test.to_csv(test_csv, index=False)
             best_model, best_score = self.event_wise_model_selection(
-                train_set = final_train,
+                train_set=final_train,
                 search_cv=search_cv_factory3(),
                 callbacks=callbacks,
                 call_every_ms=100,
-                flat = flat,
-                run_id = self.make_run_id( [tuple(mask1)])
+                flat=flat,
+                run_id=self.make_run_id([tuple(mask1)]),
             )
-            print(f"best_score: {best_score}")
             feat = [c for c in challenge_test.columns if c.startswith("group_")]
             X_test = challenge_test[feat]
-            predictions =best_model.predict(X_test)
+            predictions = best_model.predict(X_test)
             probas = best_model.predict_proba(X_test)[:, 1]
             binary_predictions.append(predictions)
             challenge_probas.append(probas)
-            probas_df = pd.DataFrame({
-                "pred_proba": best_model.predict_proba(X_test)[:, 1]
-            })
-            proba_csv = os.path.join(self.exp_dir, self.run_id, f"predicted_probas_fold{fold_idx:02d}.csv")
+            probas_df = pd.DataFrame(
+                {"pred_proba": best_model.predict_proba(X_test)[:, 1]}
+            )
+            proba_csv = os.path.join(
+                self.exp_dir, self.run_id, f"predicted_probas_fold{fold_idx:02d}.csv"
+            )
             probas_df.to_csv(proba_csv, index=False)
 
-        final_probas = np.max(challenge_probas, axis=0) - np.var(challenge_probas, axis=0)
+        final_probas = np.max(challenge_probas, axis=0) - np.var(
+            challenge_probas, axis=0
+        )
         final_predictions = np.max(binary_predictions, axis=0)
-        print(final_predictions)
 
         y_full, y_binary = self.predict_challenge_labels(
             challenge_test=challenge_test,
             challenge_probas=final_probas,
-            peak_height = peak_height,
-            buffer_size = buffer_size,
+            peak_height=peak_height,
+            buffer_size=buffer_size,
         )
-        labels_df = pd.DataFrame({
-            "id": np.arange(len(y_full)) + self.id_offset,
-            "is_anomaly": y_full,
-            "pred_binary": y_binary
-        })
+        labels_df = pd.DataFrame(
+            {
+                "id": np.arange(len(y_full)) + self.id_offset,
+                "is_anomaly": y_full,
+                "pred_binary": y_binary,
+            }
+        )
         y_full, y_binary = self.predict_challenge_labels2(
             challenge_test=challenge_test,
             challenge_preds=final_predictions,
         )
-        
+
         self.compute_total_scores(mission)
         return labels_df
-            
+
     def channel_specific_ensemble(
         self,
         train_channel: ESA,
         challenge_channel: ESA,
-        mask1: Tuple[int,int],
+        mask1: Tuple[int, int],
         channel_id: str,
         search_cv_factory: Any,
         search_cv_factory2: Any,
@@ -382,12 +406,24 @@ class ESACompetitionBenchmark(Benchmark):
         # -------------------- ENSEMBLE TRAINING -------------------------------
         external_eval1_probas = []
         external_challenge_probas = []
-        eval2_masks = sample_smart_masks(len_data, [mask1], int(perc_eval2*len_data), external_estimators, rng=np.random.default_rng(int(channel_id.split("_")[1])))
+        eval2_masks = sample_smart_masks(
+            len_data,
+            [mask1],
+            int(perc_eval2 * len_data),
+            external_estimators,
+            rng=np.random.default_rng(int(channel_id.split("_")[1])),
+        )
 
         scores = []
 
         for ext_idx, mask2 in enumerate(tqdm(eval2_masks, desc="External estimators")):
-            shapelet_masks = sample_smart_masks(len_data, [tuple(mask1), tuple(mask2)], int(perc_shapelet*len_data), internal_estimators, rng=np.random.default_rng(int(channel_id.split("_")[1])))
+            shapelet_masks = sample_smart_masks(
+                len_data,
+                [tuple(mask1), tuple(mask2)],
+                int(perc_shapelet * len_data),
+                internal_estimators,
+                rng=np.random.default_rng(int(channel_id.split("_")[1])),
+            )
             internal_eval2_probas = []
             internal_eval1_probas = []
             internal_challenge_probas = []
@@ -395,15 +431,35 @@ class ESACompetitionBenchmark(Benchmark):
                 tqdm(shapelet_masks, desc=f"  Internals for ext={ext_idx}", leave=False)
             ):
                 if self.segmentator is not None:
-                    self.segmentator.shapelet_miner.initialize_kernels(train_channel, shapelet_mask, self.make_run_id([shapelet_mask]))
-                    internal_train_channel, internal_train_anomalies = self.segmentator.segment(train_channel,
-                                                masks=[tuple(mask1), tuple(mask2), tuple(shapelet_mask)], train_phase=True,
-                                                ensemble_id=f"train_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}")
-                    
-                    eval2_channel, eval2_anomalies = self.segmentator.segment(train_channel, masks=[mask2], ensemble_id=f"eval2_{self.make_run_id([tuple(mask2), tuple(shapelet_mask)])}")
-                    eval1_channel, eval1_anomalies = self.segmentator.segment(train_channel, masks=[mask1], ensemble_id=f"eval1_{self.make_run_id([tuple(mask1), tuple(shapelet_mask)])}")
-                    challenge_channel_segments, _ = self.segmentator.segment(challenge_channel, masks=[], ensemble_id=f"challenge_{self.make_run_id([tuple(shapelet_mask)])}", train_phase=True)
-                
+                    self.segmentator.shapelet_miner.initialize_kernels(
+                        train_channel, shapelet_mask, self.make_run_id([shapelet_mask])
+                    )
+                    internal_train_channel, internal_train_anomalies = (
+                        self.segmentator.segment(
+                            train_channel,
+                            masks=[tuple(mask1), tuple(mask2), tuple(shapelet_mask)],
+                            train_phase=True,
+                            ensemble_id=f"train_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}",
+                        )
+                    )
+
+                    eval2_channel, eval2_anomalies = self.segmentator.segment(
+                        train_channel,
+                        masks=[mask2],
+                        ensemble_id=f"eval2_{self.make_run_id([tuple(mask2), tuple(shapelet_mask)])}",
+                    )
+                    eval1_channel, eval1_anomalies = self.segmentator.segment(
+                        train_channel,
+                        masks=[mask1],
+                        ensemble_id=f"eval1_{self.make_run_id([tuple(mask1), tuple(shapelet_mask)])}",
+                    )
+                    challenge_channel_segments, _ = self.segmentator.segment(
+                        challenge_channel,
+                        masks=[],
+                        ensemble_id=f"challenge_{self.make_run_id([tuple(shapelet_mask)])}",
+                        train_phase=True,
+                    )
+
                 internal_estimator, _ = self.channel_specific_model_selection(
                     train_channel=internal_train_channel,
                     train_anomalies=internal_train_anomalies,
@@ -441,19 +497,25 @@ class ESACompetitionBenchmark(Benchmark):
                 internal_challenge_probas.append(pc)
 
             # -------- Meta‑classifier over internal probs (eval split) ----------
-            meta_train_df = pd.DataFrame({
-                f"channel_{i}": internal_eval2_probas[i]
-                for i in range(len(internal_eval2_probas))
-            })
-            meta_eval1_df = pd.DataFrame({
-                f"channel_{i}": internal_eval1_probas[i]
-                for i in range(len(internal_eval1_probas))
-            })
-            meta_challenge_df = pd.DataFrame({
-                f"channel_{i}": internal_challenge_probas[i]
-                for i in range(len(internal_challenge_probas))
-            })    
-            
+            meta_train_df = pd.DataFrame(
+                {
+                    f"channel_{i}": internal_eval2_probas[i]
+                    for i in range(len(internal_eval2_probas))
+                }
+            )
+            meta_eval1_df = pd.DataFrame(
+                {
+                    f"channel_{i}": internal_eval1_probas[i]
+                    for i in range(len(internal_eval1_probas))
+                }
+            )
+            meta_challenge_df = pd.DataFrame(
+                {
+                    f"channel_{i}": internal_challenge_probas[i]
+                    for i in range(len(internal_challenge_probas))
+                }
+            )
+
             meta_estimator, meta_score = self.channel_specific_model_selection(
                 train_channel=meta_train_df,
                 train_anomalies=eval2_anomalies,
@@ -495,28 +557,28 @@ class ESACompetitionBenchmark(Benchmark):
         ends_test = eval1_channel["end"].tolist()
 
         eval1_labels = np.zeros(len(eval1_channel), dtype=int)
-      
+
         for s, e in eval1_anomalies:
             s = max(0, s)
-            e = min(len(eval1_channel)-1, e)
-            eval1_labels[s : e+1] = 1
-        
+            e = min(len(eval1_channel) - 1, e)
+            eval1_labels[s : e + 1] = 1
+
         final_train = self.save_channel_probas(
             proba_list=eval1_probas,
             fname=f"train_ensemble_probas_{self.make_run_id([tuple(mask1)])}.csv",
             channel_id=channel_id,
             start_list=starts_test,
             end_list=ends_test,
-            true_list=eval1_labels
+            true_list=eval1_labels,
         )
-        
+
         # -------------------- Ensemble of Meta-classifiers prediction for channel ON CHALLENGE -------------------
-        
+
         challenge_probas = np.mean(external_challenge_probas, axis=0)
-        #challenge_probas = qt.transform(challenge_probas.reshape(-1, 1)).ravel() 
+        # challenge_probas = qt.transform(challenge_probas.reshape(-1, 1)).ravel()
         starts_test = challenge_channel_segments["start"].tolist()
         ends_test = challenge_channel_segments["end"].tolist()
-        
+
         challenge_test = self.save_channel_probas(
             proba_list=challenge_probas,
             fname=f"test_ensemble_probas_{self.make_run_id([tuple(mask1)])}.csv",
@@ -524,17 +586,16 @@ class ESACompetitionBenchmark(Benchmark):
             start_list=starts_test,
             end_list=ends_test,
         )
-        
-        return final_train, challenge_test, np.mean(np.array(scores))
 
+        return final_train, challenge_test, np.mean(np.array(scores))
 
     def channel_specific_model_selection(
         self,
         train_channel: Any,
-        train_anomalies: List[Tuple[int,int]],
+        train_anomalies: List[Tuple[int, int]],
         search_cv: Any,
-        run_id: str,                   # <<< nuovo argomento
-        channel_id: str,              # <<< serve per il filename
+        run_id: str,  # <<< nuovo argomento
+        channel_id: str,  # <<< serve per il filename
         callbacks: Optional[List[Callback]] = None,
         call_every_ms: int = 100,
     ):
@@ -552,33 +613,37 @@ class ESACompetitionBenchmark(Benchmark):
                 history = json.load(f)
         else:
             history = {}
-        
 
         # numero di iterazioni programmate per questo search_cv
-        desired_n = getattr(search_cv, "n_iter", None) or getattr(search_cv, "n_iter_search", None)
+        desired_n = getattr(search_cv, "n_iter", None) or getattr(
+            search_cv, "n_iter_search", None
+        )
 
-        full_train   = train_channel.copy(deep=True).reset_index(drop=True)
+        full_train = train_channel.copy(deep=True).reset_index(drop=True)
         labels_train = np.zeros(len(full_train), dtype=int)
         for s, e in train_anomalies:
-            s, e = max(0, s), min(len(full_train)-1, e)
-            labels_train[s:e+1] = 1
+            s, e = max(0, s), min(len(full_train) - 1, e)
+            labels_train[s : e + 1] = 1
 
         # --- NUOVA PARTE DI CODICE -----------------------------------
         unique = np.unique(labels_train)
         if unique.size < 2:
             # se c'è solo una classe, salta la CV e fai un fit diretto
-            print(f"[model_selection] Solo classe {unique[0]} in y per run_id={run_id}, salto BayesSearchCV")
             estimator = DummyClassifier(strategy="constant", constant=0)
             estimator.fit(full_train, labels_train)
             return estimator, 0.0
 
         # se abbiamo già un risultato valido, ricicla
         prev = history.get(run_id)
-     
+
         current_space_keys = sorted(search_cv.search_spaces.keys())
-        if prev is not None and desired_n is not None and prev.get("n_iter", 0) >= desired_n:
+        if (
+            prev is not None
+            and desired_n is not None
+            and prev.get("n_iter", 0) >= desired_n
+        ):
             best_params = prev["best_params"]
-            
+
             # ricrea e refit
             estimator = clone(search_cv.estimator).set_params(**best_params)
             estimator.fit(full_train, labels_train)
@@ -592,16 +657,15 @@ class ESACompetitionBenchmark(Benchmark):
                 error_score=0.0,
             )
             metric_key = [k for k in cv_res if k.startswith("test_")][0]
-            new_score  = float(np.mean(cv_res[metric_key]))
+            new_score = float(np.mean(cv_res[metric_key]))
 
             # se score diverso (o non salvato) → aggiorna file
             if abs(new_score - prev.get("cv_score", np.nan)) > 1e-6:
                 history[run_id]["cv_score"] = new_score
                 with open(json_path, "w") as f:
                     json.dump(history, f, indent=2)
-            print(f"[model_selection] Reusing params for {run_id}  (CV score = {new_score:.4f})")
             return estimator, new_score
-        
+
         # altrimenti: esegui la BayesSearchCV
         callback_handler = CallbackHandler(callbacks or [], call_every_ms)
         callback_handler.start()
@@ -615,28 +679,33 @@ class ESACompetitionBenchmark(Benchmark):
             # ---- verifica se ogni fold ha entrambe le classi -----------
             cv_ok = True
             for tr_idx, te_idx in search_cv.cv.split(full_train, labels_train):
-                if np.unique(labels_train[tr_idx]).size < 2 or np.unique(labels_train[te_idx]).size < 2:
+                if (
+                    np.unique(labels_train[tr_idx]).size < 2
+                    or np.unique(labels_train[te_idx]).size < 2
+                ):
                     cv_ok = False
                     break
 
             if not cv_ok:
-                return estimator, 0.0   # oppure 0.0
+                return estimator, 0.0  # oppure 0.0
 
             # ---- calcola comunque lo score -----------------------------
             cv_res = cross_validate(
-                estimator, full_train, labels_train,
+                estimator,
+                full_train,
+                labels_train,
                 cv=search_cv.cv,
                 scoring=make_esa_scorer(self),
                 n_jobs=1,
                 error_score=0.0,
             )
-            metric_key     = [k for k in cv_res if k.startswith("test_")][0]
+            metric_key = [k for k in cv_res if k.startswith("test_")][0]
             fallback_score = float(np.mean(cv_res[metric_key]))
             return estimator, fallback_score
 
         # ----- caso "normale" dopo fit riuscito -----
         best_estimator = search_cv.best_estimator_
-        best_params    = search_cv.best_params_
+        best_params = search_cv.best_params_
 
         # ---> qui si calcola cv_res sul best_estimator
         cv_res = cross_validate(
@@ -646,25 +715,26 @@ class ESACompetitionBenchmark(Benchmark):
             cv=search_cv.cv,
             scoring=make_esa_scorer(self),
             n_jobs=-1,
-            error_score=0.0
+            error_score=0.0,
         )
 
         metric_key = [k for k in cv_res if k.startswith("test_")][0]
-        best_score  = float(np.mean(cv_res[metric_key]))
-        n_done      = desired_n if desired_n is not None else len(search_cv.cv_results_["params"])
+        best_score = float(np.mean(cv_res[metric_key]))
+        n_done = (
+            desired_n if desired_n is not None else len(search_cv.cv_results_["params"])
+        )
 
         # salva nel JSON
         history[run_id] = {
-            "cv_score":    best_score,
-            "n_iter":      n_done,
-            "best_params": best_params
+            "cv_score": best_score,
+            "n_iter": n_done,
+            "best_params": best_params,
         }
         with open(json_path, "w") as f:
             json.dump(history, f, indent=2)
 
         return best_estimator, best_score
-    
-    
+
     def event_wise_model_selection(
         self,
         train_set: pd.DataFrame,
@@ -710,29 +780,25 @@ class ESACompetitionBenchmark(Benchmark):
             history = {}
 
         # numero di iterazioni attese della BayesSearchCV
-        desired_n = getattr(search_cv, "n_iter", None) or getattr(search_cv, "n_iter_search", None)
-        prev      = history.get(run_id)
+        desired_n = getattr(search_cv, "n_iter", None) or getattr(
+            search_cv, "n_iter_search", None
+        )
+        prev = history.get(run_id)
 
         # estraggo chiavi dello search space ordinandole
         current_space_keys = sorted(search_cv.search_spaces.keys())
 
         # --- 3) se esistono già risultati per questo run_id e n_iter è soddisfatto, li riuso ---
-        if (prev is not None 
-            and desired_n is not None 
-            and prev.get("n_iter", 0) >= desired_n 
+        if (
+            prev is not None
+            and desired_n is not None
+            and prev.get("n_iter", 0) >= desired_n
         ):
             best_params = prev["best_params"]
-            estimator   = clone(search_cv.estimator).set_params(**best_params)
+            estimator = clone(search_cv.estimator).set_params(**best_params)
             estimator.fit(X, y)
 
             return estimator, prev["cv_score"]
-        
-        nan_locations = X.isna()
-        for row, cols in nan_locations.iterrows():
-            for col, is_nan in cols.items():
-                if is_nan:
-                    print(f"NaN at row {row}, column '{col}'")
-
 
         # --- 4) altrimenti: eseguo davvero la BayesSearchCV e salvo i nuovi params ---
         callback_handler = CallbackHandler(callbacks or [], call_every_ms)
@@ -743,15 +809,17 @@ class ESACompetitionBenchmark(Benchmark):
             callback_handler.stop()
 
         best_estimator = search_cv.best_estimator_
-        best_params    = search_cv.best_params_
-        best_score     = float(search_cv.best_score_)
-        n_done         = desired_n if desired_n is not None else len(search_cv.cv_results_["params"])
+        best_params = search_cv.best_params_
+        best_score = float(search_cv.best_score_)
+        n_done = (
+            desired_n if desired_n is not None else len(search_cv.cv_results_["params"])
+        )
 
         # ----------------- SALVATAGGIO nel JSON -----------------
         history[run_id] = {
-            "cv_score":    best_score,
-            "n_iter":      n_done,
-            "best_params": best_params
+            "cv_score": best_score,
+            "n_iter": n_done,
+            "best_params": best_params,
         }
         if "batch_size" in search_cv.search_spaces.keys():
             with open(json_path, "w") as f:
@@ -763,7 +831,7 @@ class ESACompetitionBenchmark(Benchmark):
     def create_sliding_sequences(self, df, feature_cols, seq_len, for_crf=True):
         X_seq, y_seq = [], []
         for i in range(len(df) - seq_len + 1):
-            seq_df = df.iloc[i:i+seq_len]
+            seq_df = df.iloc[i : i + seq_len]
             seq_x = seq_df[feature_cols].values
 
             if for_crf:
@@ -779,7 +847,7 @@ class ESACompetitionBenchmark(Benchmark):
                 X_seq.append(seq_x)
                 y_seq.append(df["anomaly"].iloc[i + seq_len - 1])
         return X_seq, y_seq
-    
+
     def predict_challenge_labels(
         self,
         challenge_test: pd.DataFrame,
@@ -802,14 +870,14 @@ class ESACompetitionBenchmark(Benchmark):
         max_idx = int(challenge_test["end"].max())
         T = max_idx + 40
         sum_p = np.zeros(T, float)
-        cnt   = np.zeros(T, int)
+        cnt = np.zeros(T, int)
 
         for (_, row), p in zip(challenge_test.iterrows(), challenge_probas):
             s, e = int(row["start"]), int(row["end"])
-            sum_p[s:e+1] += p
-            cnt[s:e+1]   += 1
+            sum_p[s : e + 1] += p
+            cnt[s : e + 1] += 1
 
-        mask   = cnt > 0
+        mask = cnt > 0
         y_full = np.zeros(T, float)
         y_full[mask] = sum_p[mask] / cnt[mask]
 
@@ -818,16 +886,17 @@ class ESACompetitionBenchmark(Benchmark):
         for idx in peaks:
             a = max(0, idx - buffer_size)
             b = min(T - 1, idx + buffer_size)
-            y_binary[a:b+1] = 1
+            y_binary[a : b + 1] = 1
 
         ids = np.arange(T) + self.id_offset
-        pd.DataFrame({"id": ids, "is_anomaly": y_full}) \
-          .to_csv(os.path.join(self.run_dir, "predicted_proba_labels.csv"), index=False)
-        pd.DataFrame({"id": ids, "pred_binary": y_binary}) \
-          .to_csv(os.path.join(self.run_dir, "predicted_binary_labels.csv"), index=False)
+        pd.DataFrame({"id": ids, "is_anomaly": y_full}).to_csv(
+            os.path.join(self.run_dir, "predicted_proba_labels.csv"), index=False
+        )
+        pd.DataFrame({"id": ids, "pred_binary": y_binary}).to_csv(
+            os.path.join(self.run_dir, "predicted_binary_labels.csv"), index=False
+        )
 
         return y_full, y_binary
-    
 
     def predict_challenge_labels2(
         self,
@@ -846,12 +915,12 @@ class ESACompetitionBenchmark(Benchmark):
 
         # array comodi ------------------------------------------------------------
         starts = challenge_test["start"].astype(int).to_numpy()
-        ends   = challenge_test["end"].astype(int).to_numpy()
-        preds  = np.asarray(challenge_preds, dtype=int)
+        ends = challenge_test["end"].astype(int).to_numpy()
+        preds = np.asarray(challenge_preds, dtype=int)
 
         # indici dei segmenti positivi e gruppi contigui --------------------------
         pos_idx = np.where(preds > 0)[0]
-        groups  = [list(g) for g in mit.consecutive_groups(pos_idx)]
+        groups = [list(g) for g in mit.consecutive_groups(pos_idx)]
 
         for g in groups:
             first_pos, last_pos = g[0], g[-1]
@@ -859,13 +928,13 @@ class ESACompetitionBenchmark(Benchmark):
             # ------ limite inferiore: end del segmento negativo precedente -------
             if first_pos > 0 and preds[first_pos - 1] == 0:
                 new_start = ends[first_pos - 1]
-            else:                                   # non c'è negativo prima
+            else:  # non c'è negativo prima
                 new_start = starts[first_pos]
 
             # ------ limite superiore: start del segmento negativo successivo -----
             if last_pos < len(preds) - 1 and preds[last_pos + 1] == 0:
                 new_end = starts[last_pos + 1]
-            else:                                   # non c'è negativo dopo
+            else:  # non c'è negativo dopo
                 new_end = ends[last_pos]
 
             # sempre almeno 1 time-step
@@ -875,7 +944,7 @@ class ESACompetitionBenchmark(Benchmark):
 
             # clamp ai bordi array
             new_start = max(0, new_start)
-            new_end   = min(T, new_end)
+            new_end = min(T, new_end)
 
             y_full[new_start:new_end] = 1.0
 
@@ -885,8 +954,6 @@ class ESACompetitionBenchmark(Benchmark):
         out.to_csv(os.path.join(self.run_dir, "predicted_labels.csv"), index=False)
 
         return y_full, y_full.astype(int)
-    
-
 
     def load_channel(
         self, mission: ESAMission, channel_id: str, overlapping_train: bool = True
@@ -899,7 +966,7 @@ class ESACompetitionBenchmark(Benchmark):
 
         Returns:
             Tuple[ESA, ESA]: training and testing datasets
-    
+
         """
         train_channel = ESA(
             root=self.data_root,
@@ -958,7 +1025,7 @@ class ESACompetitionBenchmark(Benchmark):
 
             else:
                 results["false_positives"] += 1
-        
+
         results["false_negatives"] = len(
             np.delete(true_anomalies, matched_true_seqs, axis=0)
         )
@@ -976,9 +1043,6 @@ class ESACompetitionBenchmark(Benchmark):
             else 0
         )
         return results
-
-
-
 
     def compute_esa_classification_metrics(
         self,
@@ -1018,8 +1082,10 @@ class ESACompetitionBenchmark(Benchmark):
             else 0
         )
         return esa_results
-    
-    def process_pred_anomalies(self, y_pred: np.ndarray, pred_buffer: int) -> List[List[int]]:
+
+    def process_pred_anomalies(
+        self, y_pred: np.ndarray, pred_buffer: int
+    ) -> List[List[int]]:
         pred_anomalies = np.where(y_pred == 1)[0]
 
         if len(pred_anomalies) > 0:
@@ -1035,7 +1101,7 @@ class ESACompetitionBenchmark(Benchmark):
                 if not merged_intervals or interval[0] > merged_intervals[-1][1]:
                     merged_intervals.append(interval)
                 else:
-                    merged_intervals[-1][1] = max(merged_intervals[-1][1], interval[1])  
+                    merged_intervals[-1][1] = max(merged_intervals[-1][1], interval[1])
 
             return merged_intervals
         else:
@@ -1046,9 +1112,9 @@ class ESACompetitionBenchmark(Benchmark):
         proba_list: List[float],
         fname: str,
         channel_id: str,
-        start_list:   List[int],
-        end_list:     List[int],
-        true_list: Optional[List[int]] = None
+        start_list: List[int],
+        end_list: List[int],
+        true_list: Optional[List[int]] = None,
     ):
         """
         Salva (in append/overwrite) le probabilità out‐of‐fold del canale `channel_id`
@@ -1061,7 +1127,7 @@ class ESACompetitionBenchmark(Benchmark):
             df_all = pd.read_csv(csv_path)
         else:
             df_all = pd.DataFrame()
-            
+
         needed = len(proba_list)
         if df_all.shape[0] < needed:
             # allungo l’indice a RangeIndex(0..needed-1)
@@ -1070,7 +1136,7 @@ class ESACompetitionBenchmark(Benchmark):
         if "start" not in df_all.columns:
             df_all["start"] = pd.Series(start_list, index=pd.RangeIndex(needed))
         if "end" not in df_all.columns:
-            df_all["end"]   = pd.Series(end_list,   index=pd.RangeIndex(needed))
+            df_all["end"] = pd.Series(end_list, index=pd.RangeIndex(needed))
 
         # 3) Scrivo la colonna del channel corrente
         df_all[channel_id] = pd.Series(proba_list, index=pd.RangeIndex(needed))
@@ -1079,26 +1145,29 @@ class ESACompetitionBenchmark(Benchmark):
             true_series = pd.Series(true_list, index=pd.RangeIndex(needed)).astype(int)
             if "anomaly" in df_all.columns:
                 # OR logico (bitwise)
-                df_all["anomaly"] = (df_all["anomaly"].fillna(0).astype(int) | true_series)
+                df_all["anomaly"] = (
+                    df_all["anomaly"].fillna(0).astype(int) | true_series
+                )
             else:
                 df_all["anomaly"] = true_series
 
         # 4) Salvo su disco
         df_all.to_csv(csv_path, index=False)
-        
+
         return df_all
 
-    def make_run_id(self, masks: List[Tuple[int,int]]) -> str:
+    def make_run_id(self, masks: List[Tuple[int, int]]) -> str:
         # Canonicalizza e genera hash a 8 caratteri
         sorted_masks = sorted(masks, key=lambda x: (x[0], x[1]))
-        key = "|".join(f"{s}_{e}" for s,e in sorted_masks)
+        key = "|".join(f"{s}_{e}" for s, e in sorted_masks)
         return hashlib.md5(key.encode("utf-8")).hexdigest()[:8]
 
     def compute_total_scores(self, mission):
         rows = []
         for channel_id in mission.target_channels:
-            sel_dir   = os.path.join(self.exp_dir, self.run_id,
-                                     "channel_segments", channel_id)
+            sel_dir = os.path.join(
+                self.exp_dir, self.run_id, "channel_segments", channel_id
+            )
             json_path = os.path.join(sel_dir, ".json")
             if not os.path.exists(json_path):
                 continue  # il canale non è mai stato processato
@@ -1107,25 +1176,34 @@ class ESACompetitionBenchmark(Benchmark):
                 history = json.load(f)
 
             # raccogli tutti gli score disponibili
-            internal_scores = [v["cv_score"]      # ← assume che ora tu salvi cv_score
-                               for k, v in history.items()
-                               if k.startswith("internal_") and "cv_score" in v]
-            external_scores = [v["cv_score"]
-                               for k, v in history.items()
-                               if k.startswith("external_") and "cv_score" in v]
+            internal_scores = [
+                v["cv_score"]  # ← assume che ora tu salvi cv_score
+                for k, v in history.items()
+                if k.startswith("internal_") and "cv_score" in v
+            ]
+            external_scores = [
+                v["cv_score"]
+                for k, v in history.items()
+                if k.startswith("external_") and "cv_score" in v
+            ]
 
             # media o NaN se non presenti
-            internal_mean = float(np.mean(internal_scores)) \
-                            if internal_scores else float("nan")
-            external_mean = float(np.mean(external_scores)) \
-                            if external_scores else float("nan")
+            internal_mean = (
+                float(np.mean(internal_scores)) if internal_scores else float("nan")
+            )
+            external_mean = (
+                float(np.mean(external_scores)) if external_scores else float("nan")
+            )
 
-            rows.append({"channel_id": channel_id,
-                         "mean_internal_cv": internal_mean,
-                         "mean_external_cv": external_mean})
+            rows.append(
+                {
+                    "channel_id": channel_id,
+                    "mean_internal_cv": internal_mean,
+                    "mean_external_cv": external_mean,
+                }
+            )
 
-        if rows:                                        # scrivi solo se c’è qualcosa
+        if rows:  # scrivi solo se c’è qualcosa
             score_df = pd.DataFrame(rows)
             score_csv = os.path.join(self.run_dir, "cv_score_summary.csv")
             score_df.to_csv(score_csv, index=False)
-            print(f"[run] CV-score summary salvato in {score_csv}")
