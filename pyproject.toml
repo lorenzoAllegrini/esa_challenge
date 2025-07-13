@@ -63,7 +63,7 @@ build-backend = "poetry.core.masonry.api"
 name = "cz_conventional_commits"
 version = "0.0.1"
 tag_format = "$version"
-version_files = ["pyproject.toml:version", "eclypse/__init__.py:__version__"]
+version_files = ["pyproject.toml:version", "spaceai/__init__.py:__version__"]
 
 [tool.pycln]
 all = true
