@@ -47,6 +47,25 @@ class ShapeletMiner:
     def initialize_kernels(
         self, esa_channel: ESA, mask: Tuple[int, int], ensemble_id: str
     ):
+        """Extract and store shapelet kernels from the given channel.
+
+        Parameters
+        ----------
+        esa_channel : ESA
+            Channel object containing the raw signal and anomaly intervals.
+        mask : Tuple[int, int]
+            Time range used to sample nominal segments when mining shapelets.
+        ensemble_id : str
+            Identifier of the current ensemble. Used to cache discovered
+            shapelets on disk.
+
+        Notes
+        -----
+        The mined kernels are saved in ``experiments/<run_id>/channel_segments``
+        under ``shapelets.json`` and loaded back if available. When ``skip`` is
+        True, the method only loads existing kernels without performing the
+        expensive mining step.
+        """
         channel_dir = os.path.join(
             self.exp_dir, self.run_id, "channel_segments", esa_channel.channel_id
         )
@@ -167,6 +186,23 @@ class ShapeletMiner:
             json.dump(all_payload, f)
 
     def score_anomaly_kernels(self, kernels_pool, test_pools, nominal_segments):
+        """Score candidate kernels extracted from anomaly pools.
+
+        Parameters
+        ----------
+        kernels_pool : array-like
+            1-D array of anomalous data used to mine raw candidate kernels.
+        test_pools : list[array-like]
+            Additional anomalous pools used to evaluate kernel response.
+        nominal_segments : list[array-like]
+            Segments of nominal data against which kernels are penalised.
+
+        Returns
+        -------
+        Tuple[List[np.ndarray], np.ndarray]
+            The unique candidate kernels and their maximum scores across the
+            provided pools, adjusted by nominal segments.
+        """
         raw_kernels = []
         for k in range(self.k_min_length, self.k_max_length + 1):
             kernels = self.extract_kernels_from_data(kernels_pool, k)
@@ -215,9 +251,22 @@ class ShapeletMiner:
         scores: np.ndarray,
         num_kernels: int | None = None,
     ) -> list[np.ndarray]:
-        """
-        Restituisce al massimo `num_kernels` kernel con score più alti,
-        garantendo una minima diversità di lunghezze.
+        """Return the top scoring kernels while avoiding duplicates.
+
+        Parameters
+        ----------
+        kernels : list[np.ndarray]
+            Candidate kernels to filter.
+        scores : np.ndarray
+            Score associated with each kernel.
+        num_kernels : int, optional
+            Desired number of kernels (defaults to ``self.num_kernels``).
+
+        Returns
+        -------
+        list[np.ndarray]
+            A list containing at most ``num_kernels`` kernels sorted by score and
+            with a minimum diversity in their lengths.
         """
         if num_kernels is None:
             num_kernels = self.num_kernels

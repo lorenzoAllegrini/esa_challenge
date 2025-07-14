@@ -66,7 +66,10 @@ from .benchmark import Benchmark
 
 
 def make_esa_scorer(benchmark):
+    """Return a scikit-learn scorer computing ESA precision."""
+
     def scorer(y_true, y_pred):
+        """Inner scoring function used by ``make_scorer``."""
         pred_anomalies = benchmark.process_pred_anomalies(y_pred, 0)
         indices = np.where(y_true == 1)[0]
         groups = [list(group) for group in mit.consecutive_groups(indices)]
@@ -173,6 +176,8 @@ class ESACompetitionBenchmark(Benchmark):
         k: int = 3,
         stride: int = 1,
     ) -> pd.DataFrame:
+        """Add max-pooling features over channel probabilities."""
+
         # 1) individua le colonne channel_…
         cols = [c for c in df.columns if c.startswith(base_prefix)]
         values = df[cols].to_numpy()
@@ -218,6 +223,7 @@ class ESACompetitionBenchmark(Benchmark):
         delta: float = 0.05,
         beta: float = 0.3,
     ):
+        """Execute the full ESA competition training pipeline."""
         source_folder = os.path.join(self.data_root, mission.inner_dirpath)
         meta = pd.read_csv(os.path.join(source_folder, "channels.csv")).assign(
             Channel=lambda d: d.Channel.str.strip()
@@ -599,6 +605,7 @@ class ESACompetitionBenchmark(Benchmark):
         callbacks: Optional[List[Callback]] = None,
         call_every_ms: int = 100,
     ):
+        """Select the best model for a single channel using BayesSearchCV."""
         warnings.filterwarnings("ignore", category=FitFailedWarning)
         # prepara directory & JSON
         sel_dir = os.path.join(
@@ -829,6 +836,8 @@ class ESACompetitionBenchmark(Benchmark):
         return best_estimator, best_score
 
     def create_sliding_sequences(self, df, feature_cols, seq_len, for_crf=True):
+        """Convert a feature DataFrame into overlapping sliding windows."""
+
         X_seq, y_seq = [], []
         for i in range(len(df) - seq_len + 1):
             seq_df = df.iloc[i : i + seq_len]
@@ -992,6 +1001,7 @@ class ESACompetitionBenchmark(Benchmark):
         return train_channel, test_channel
 
     def compute_classification_metrics(self, true_anomalies, pred_anomalies):
+        """Basic precision/recall metrics on anomaly intervals."""
         results = {
             "n_anomalies": len(true_anomalies),
             "n_detected": len(pred_anomalies),
@@ -1086,6 +1096,7 @@ class ESACompetitionBenchmark(Benchmark):
     def process_pred_anomalies(
         self, y_pred: np.ndarray, pred_buffer: int
     ) -> List[List[int]]:
+        """Merge binary predictions into buffered anomaly intervals."""
         pred_anomalies = np.where(y_pred == 1)[0]
 
         if len(pred_anomalies) > 0:
@@ -1157,12 +1168,14 @@ class ESACompetitionBenchmark(Benchmark):
         return df_all
 
     def make_run_id(self, masks: List[Tuple[int, int]]) -> str:
+        """Create a short hash identifier for a list of masks."""
         # Canonicalizza e genera hash a 8 caratteri
         sorted_masks = sorted(masks, key=lambda x: (x[0], x[1]))
         key = "|".join(f"{s}_{e}" for s, e in sorted_masks)
         return hashlib.md5(key.encode("utf-8")).hexdigest()[:8]
 
     def compute_total_scores(self, mission):
+        """Aggregate and persist CV scores for all processed channels."""
         rows = []
         for channel_id in mission.target_channels:
             sel_dir = os.path.join(
