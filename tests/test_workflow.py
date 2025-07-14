@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import numpy as np
@@ -11,7 +12,9 @@ from spaceai.segmentators.shapelet_miner import ShapeletMiner
 
 
 def test_competition_workflow(tmp_path, sample_dataset, monkeypatch):
+
     """Ensure the benchmark.run workflow executes end-to-end."""
+
 
     mission = ESAMissions.MISSION_1.value
     mission.target_channels = ["channel_41"]
@@ -110,3 +113,4 @@ def test_competition_workflow(tmp_path, sample_dataset, monkeypatch):
     labels = benchmark.run(mission, DummySearchCV, DummySearchCV, DummySearchCV)
 
     assert set(labels.columns) == {"id", "is_anomaly", "pred_binary"}
+

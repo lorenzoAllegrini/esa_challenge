@@ -10,8 +10,10 @@ Run the following commands within your python virtual environment:
 ```sh
 pip install poetry
 
+
 git clone https://github.com/continualist/esa_challenge.git
 cd esa_challenge
+
 # install runtime dependencies
 poetry install
 # install optional testing dependencies
