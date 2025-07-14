@@ -1,5 +1,5 @@
-# SpaceAI
-Repository for providing off-the-shelf benchmarks for AI-based aerospace applications.
+# ESA Challenge Benchmark
+Repository providing utilities and reference implementations for the ESA telemetry anomaly detection challenge.
 
 
 ### Getting started
@@ -10,8 +10,10 @@ Run the following commands within your python virtual environment:
 ```sh
 pip install poetry
 
-git clone https://github.com/continualist/space-ai.git
-cd space-ai
+
+git clone https://github.com/continualist/esa_challenge.git
+cd esa_challenge
+
 # install runtime dependencies
 poetry install
 # install optional testing dependencies

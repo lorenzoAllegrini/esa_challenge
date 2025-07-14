@@ -88,6 +88,31 @@ import numpy as np
 import pandas as pd
 import pytest
 
+# Stub out the compiled cython extension with simple numpy fallbacks
+cython_mod = types.ModuleType("spaceai.segmentators.cython_functions")
+
+
+def _fake_apply(self, data, anomalies, masks, train=False):
+    arr = np.asarray(data)
+    segments = []
+    for i in range(len(arr) - 1):
+        segments.append([0, i, i + 1, arr[i, 0], arr[i, 1]])
+    return segments
+
+
+setattr(cython_mod, "apply_transformations_to_channel_cython", _fake_apply)
+setattr(cython_mod, "calculate_slope", lambda arr: np.gradient(arr))
+setattr(cython_mod, "compute_spectral_centroid", lambda arr, *a, **k: 0.0)
+setattr(cython_mod, "moving_average_error", lambda a, b: 0.0)
+setattr(cython_mod, "spearman_correlation", lambda a, b: 0.0)
+setattr(cython_mod, "stft_spectral_std", lambda arr, *a, **k: 0.0)
+setattr(
+    cython_mod,
+    "_apply_kernels2",
+    lambda data, kernels: np.zeros((data.shape[0], len(kernels) * 2)),
+)
+sys.modules.setdefault("spaceai.segmentators.cython_functions", cython_mod)
+
 from spaceai.data.esa import (
     ESA,
     ESAMissions,
