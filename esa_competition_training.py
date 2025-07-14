@@ -14,6 +14,7 @@ from skopt.space import (
 )
 
 from spaceai.benchmark import ESACompetitionTraining
+
 from spaceai.data import ESAMissions
 from spaceai.segmentators.esa_segmentator2 import EsaDatasetSegmentator2
 from spaceai.segmentators.shapelet_miner import ShapeletMiner

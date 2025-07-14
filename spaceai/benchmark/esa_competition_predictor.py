@@ -34,6 +34,7 @@ class ESACompetitionPredictor:
         model_base = os.path.join(self.artifacts_dir, "models")
         for ch_dir in glob.glob(os.path.join(model_base, "channel_*")):
             ch_id = os.path.basename(ch_dir)
+
             models = [
                 joblib.load(p) for p in sorted(glob.glob(os.path.join(ch_dir, "*.pkl")))
             ]
