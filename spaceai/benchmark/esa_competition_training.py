@@ -51,9 +51,7 @@ class SegmentedModel:
             mask=(0, len(esa_channel.data)),
             ensemble_id=self.ensemble_id,
         )
-        df, _ = self.segmentator.segment(
-            esa_channel, masks=[], ensemble_id=self.ensemble_id, train_phase=False
-        )
+        df, _ = self.segmentator.segment(esa_channel, masks=[], ensemble_id=self.ensemble_id, train_phase=False)
         return self.model.predict_proba(df)
 
 
@@ -84,9 +82,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             seed=seed,
         )
 
-    def load_channel(
-        self, mission: ESAMission, channel_id: str, overlapping_train: bool = True
-    ) -> Tuple[ESA, ESA]:
+    def load_channel(self, mission: ESAMission, channel_id: str, overlapping_train: bool = True) -> Tuple[ESA, ESA]:
         """Delegate channel loading to :class:`ESACompetitionBenchmark`."""
         return super().load_channel(mission, channel_id, overlapping_train)
 
@@ -105,15 +101,11 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         callbacks: Optional[List[Callback]] = None,
         call_every_ms: int = 100,
     ):
-        sel_dir = os.path.join(
-            self.exp_dir, self.run_id, "channel_segments", channel_id
-        )
+        sel_dir = os.path.join(self.exp_dir, self.run_id, "channel_segments", channel_id)
         os.makedirs(sel_dir, exist_ok=True)
         json_path = os.path.join(sel_dir, f".json")
 
-        model_dir = os.path.join(
-            self.exp_dir, self.run_id, "models", f"channel_{channel_id}"
-        )
+        model_dir = os.path.join(self.exp_dir, self.run_id, "models", f"channel_{channel_id}")
         os.makedirs(model_dir, exist_ok=True)
         model_path = os.path.join(model_dir, f"{run_id}.pkl")
 
@@ -123,9 +115,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         else:
             history = {}
 
-        desired_n = getattr(search_cv, "n_iter", None) or getattr(
-            search_cv, "n_iter_search", None
-        )
+        desired_n = getattr(search_cv, "n_iter", None) or getattr(search_cv, "n_iter_search", None)
 
         full_train = train_channel.copy(deep=True).reset_index(drop=True)
         labels_train = np.zeros(len(full_train), dtype=int)
@@ -136,19 +126,13 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         if np.unique(labels_train).size < 2:
             estimator = DummyClassifier(strategy="constant", constant=0)
             estimator.fit(full_train, labels_train)
-            seg_model = SegmentedModel(
-                copy.deepcopy(estimator), copy.deepcopy(self.segmentator), ensemble_id
-            )
+            seg_model = SegmentedModel(copy.deepcopy(estimator), copy.deepcopy(self.segmentator), ensemble_id)
             joblib.dump(seg_model, model_path)
             return estimator, 0.0
 
         prev = history.get(run_id)
         current_space_keys = sorted(search_cv.search_spaces.keys())
-        if (
-            prev is not None
-            and desired_n is not None
-            and prev.get("n_iter", 0) >= desired_n
-        ):
+        if prev is not None and desired_n is not None and prev.get("n_iter", 0) >= desired_n:
             best_params = prev["best_params"]
             estimator = clone(search_cv.estimator).set_params(**best_params)
             estimator.fit(full_train, labels_train)
@@ -167,9 +151,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 history[run_id]["cv_score"] = new_score
                 with open(json_path, "w") as f:
                     json.dump(history, f, indent=2)
-            seg_model = SegmentedModel(
-                estimator, copy.deepcopy(self.segmentator), ensemble_id
-            )
+            seg_model = SegmentedModel(estimator, copy.deepcopy(self.segmentator), ensemble_id)
             joblib.dump(seg_model, model_path)
             return estimator, new_score
 
@@ -193,9 +175,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         )
         metric_key = [k for k in cv_res if k.startswith("test_")][0]
         best_score = float(np.mean(cv_res[metric_key]))
-        n_done = (
-            desired_n if desired_n is not None else len(search_cv.cv_results_["params"])
-        )
+        n_done = desired_n if desired_n is not None else len(search_cv.cv_results_["params"])
         history[run_id] = {
             "cv_score": best_score,
             "n_iter": n_done,
@@ -203,9 +183,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         }
         with open(json_path, "w") as f:
             json.dump(history, f, indent=2)
-        seg_model = SegmentedModel(
-            best_estimator, copy.deepcopy(self.segmentator), ensemble_id
-        )
+        seg_model = SegmentedModel(best_estimator, copy.deepcopy(self.segmentator), ensemble_id)
         joblib.dump(seg_model, model_path)
         return best_estimator, best_score
 
@@ -233,6 +211,8 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             rng=np.random.default_rng(int(channel_id.split("_")[1])),
         )
         scores = []
+        # mapping meta -> internal models for this channel
+        links: dict[str, dict[str, list[str]]] = {}
         for ext_idx, mask2 in enumerate(tqdm(eval2_masks, desc="External estimators")):
             shapelet_masks = sample_smart_masks(
                 len_data,
@@ -243,6 +223,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             )
             internal_eval2_probas = []
             internal_eval1_probas = []
+            internal_ids = []
             for int_idx, shapelet_mask in enumerate(
                 tqdm(shapelet_masks, desc=f"  Internals for ext={ext_idx}", leave=False)
             ):
@@ -250,13 +231,11 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                     self.segmentator.shapelet_miner.initialize_kernels(
                         train_channel, shapelet_mask, self.make_run_id([shapelet_mask])
                     )
-                    internal_train_channel, internal_train_anomalies = (
-                        self.segmentator.segment(
-                            train_channel,
-                            masks=[tuple(mask1), tuple(mask2), tuple(shapelet_mask)],
-                            train_phase=True,
-                            ensemble_id=f"train_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}",
-                        )
+                    internal_train_channel, internal_train_anomalies = self.segmentator.segment(
+                        train_channel,
+                        masks=[tuple(mask1), tuple(mask2), tuple(shapelet_mask)],
+                        train_phase=True,
+                        ensemble_id=f"train_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}",
                     )
                     eval2_channel, eval2_anomalies = self.segmentator.segment(
                         train_channel,
@@ -268,16 +247,18 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                         masks=[mask1],
                         ensemble_id=f"eval1_{self.make_run_id([tuple(mask1), tuple(shapelet_mask)])}",
                     )
+                internal_run_id = f"internal_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}"
                 internal_estimator, _ = self.channel_specific_model_selection(
                     train_channel=internal_train_channel,
                     train_anomalies=internal_train_anomalies,
                     search_cv=search_cv_factory(),
                     callbacks=callbacks,
-                    run_id=f"internal_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}",
+                    run_id=internal_run_id,
                     channel_id=channel_id,
                     call_every_ms=call_every_ms,
                     ensemble_id=f"train_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}",
                 )
+                internal_ids.append(internal_run_id)
                 proba2 = internal_estimator.predict_proba(eval2_channel)
                 if proba2.shape[1] == 1:
                     cls2 = internal_estimator.classes_[0]
@@ -295,26 +276,21 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 internal_eval1_probas.append(p1)
 
             meta_train_df = pd.DataFrame(
-                {
-                    f"channel_{i}": internal_eval2_probas[i]
-                    for i in range(len(internal_eval2_probas))
-                }
+                {f"channel_{i}": internal_eval2_probas[i] for i in range(len(internal_eval2_probas))}
             )
             meta_eval1_df = pd.DataFrame(
-                {
-                    f"channel_{i}": internal_eval1_probas[i]
-                    for i in range(len(internal_eval1_probas))
-                }
+                {f"channel_{i}": internal_eval1_probas[i] for i in range(len(internal_eval1_probas))}
             )
+            meta_run_id = f"external_{self.make_run_id([tuple(mask1), tuple(mask2)])}"
             meta_estimator, meta_score = self.channel_specific_model_selection(
                 train_channel=meta_train_df,
                 train_anomalies=eval2_anomalies,
                 search_cv=search_cv_factory2(),
                 callbacks=callbacks,
-                run_id=f"external_{self.make_run_id([tuple(mask2), tuple(shapelet_mask)])}",
+                run_id=meta_run_id,
                 channel_id=channel_id,
                 call_every_ms=call_every_ms,
-                ensemble_id=f"meta_{self.make_run_id([tuple(mask2), tuple(shapelet_mask)])}",
+                ensemble_id=f"meta_{self.make_run_id([tuple(mask1), tuple(mask2)])}",
             )
             scores.append(meta_score)
             probas_eval1 = meta_estimator.predict_proba(meta_eval1_df)
@@ -324,6 +300,10 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             else:
                 ext1 = probas_eval1[:, 1]
             external_eval1_probas.append(ext1)
+            links[meta_run_id] = {
+                "mask_id": self.make_run_id([tuple(mask1)]),
+                "internal_ids": internal_ids,
+            }
 
         eval1_probas = np.mean(external_eval1_probas, axis=0)
         starts_test = eval1_channel["start"].tolist()
@@ -342,6 +322,23 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             end_list=ends_test,
             true_list=eval1_labels,
         )
+        # persist mapping meta -> internal models
+        links_path = os.path.join(
+            self.exp_dir,
+            self.run_id,
+            "models",
+            f"channel_{channel_id}",
+            "links.json",
+        )
+        if os.path.exists(links_path):
+            with open(links_path, "r") as f:
+                saved = json.load(f)
+        else:
+            saved = {}
+        saved.update(links)
+        with open(links_path, "w") as f:
+            json.dump(saved, f, indent=2)
+
         return final_train, np.mean(np.array(scores))
 
     def run(
@@ -365,18 +362,9 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         beta: float = 0.3,
     ) -> None:
         source_folder = os.path.join(self.data_root, mission.inner_dirpath)
-        meta = pd.read_csv(os.path.join(source_folder, "channels.csv")).assign(
-            Channel=lambda d: d.Channel.str.strip()
-        )
-        groups = (
-            meta[meta["Channel"].isin(mission.target_channels)]
-            .groupby("Group")["Channel"]
-            .apply(list)
-            .to_dict()
-        )
-        train_channel, _ = self.load_channel(
-            mission, "channel_12", overlapping_train=True
-        )
+        meta = pd.read_csv(os.path.join(source_folder, "channels.csv")).assign(Channel=lambda d: d.Channel.str.strip())
+        groups = meta[meta["Channel"].isin(mission.target_channels)].groupby("Group")["Channel"].apply(list).to_dict()
+        train_channel, _ = self.load_channel(mission, "channel_12", overlapping_train=True)
         total_len = len(train_channel.data)
         masks1 = make_smart_masks(
             total_len=total_len,
@@ -395,22 +383,15 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 cv_csv = os.path.join(feat_dir, f"cv_scores_fold{fold_idx:02d}.csv")
                 df_cv = pd.read_csv(cv_csv)
                 channel_cv = dict(zip(df_cv["channel"], df_cv["cv_score"]))
-                global_train_csv = os.path.join(
-                    feat_dir, f"train_ensemble_probas_{mask_run_id}.csv"
-                )
+                global_train_csv = os.path.join(feat_dir, f"train_ensemble_probas_{mask_run_id}.csv")
                 final_train = pd.read_csv(global_train_csv)
             else:
                 final_train = None
                 channel_cv = {}
                 for channel_id in mission.target_channels:
-                    if (
-                        int(channel_id.split("_")[1]) < 41
-                        or int(channel_id.split("_")[1]) > 48
-                    ):
+                    if int(channel_id.split("_")[1]) < 41 or int(channel_id.split("_")[1]) > 48:
                         continue
-                    train_channel, _ = self.load_channel(
-                        mission, channel_id, overlapping_train=True
-                    )
+                    train_channel, _ = self.load_channel(mission, channel_id, overlapping_train=True)
                     final_train, channel_score = self.channel_specific_ensemble(
                         train_channel=train_channel,
                         mask1=mask1,
@@ -425,9 +406,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                         internal_estimators=internal_estimators,
                     )
                     channel_cv[channel_id] = channel_score
-                df_cv = pd.DataFrame(
-                    list(channel_cv.items()), columns=["channel", "cv_score"]
-                )
+                df_cv = pd.DataFrame(list(channel_cv.items()), columns=["channel", "cv_score"])
                 cv_csv = os.path.join(feat_dir, f"cv_scores_fold{fold_idx:02d}.csv")
                 df_cv.to_csv(cv_csv, index=False)
             final_train = self.add_group_activation(
