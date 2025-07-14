@@ -14,6 +14,7 @@ from skopt.space import (
 )
 
 from spaceai.benchmark import ESACompetitionTraining
+
 from spaceai.data import ESAMissions
 from spaceai.segmentators.esa_segmentator2 import EsaDatasetSegmentator2
 from spaceai.segmentators.shapelet_miner import ShapeletMiner
@@ -60,6 +61,7 @@ def main():
         exp_dir=args.exp_dir,
         use_shapelets=True,
     )
+
 
     benchmark = ESACompetitionTraining(
         run_id=args.run_id,
