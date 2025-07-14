@@ -13,7 +13,6 @@ __pycache__/
 # VS Code
 .vscode/
 manual_labeller.py
-ops_sat*
 experiments/**
 datasets/**
 # Ambiente
