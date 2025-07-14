@@ -6,16 +6,6 @@ from datetime import datetime, timedelta
 import json
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-ops_sat_stub = types.ModuleType("spaceai.data.ops_sat")
-class DummyOPSSAT:
-    pass
-ops_sat_stub.OPSSAT = DummyOPSSAT
-sys.modules.setdefault("spaceai.data.ops_sat", ops_sat_stub)
-bench_ops_sat = types.ModuleType("spaceai.benchmark.ops_sat")
-class DummyBenchmark:
-    pass
-bench_ops_sat.OPSSATBenchmark = DummyBenchmark
-sys.modules.setdefault("spaceai.benchmark.ops_sat", bench_ops_sat)
 cython_stub = types.ModuleType("spaceai.segmentators.cython_functions")
 def _stub(*args, **kwargs):
     return 0
