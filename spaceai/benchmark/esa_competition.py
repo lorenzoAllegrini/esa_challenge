@@ -10,6 +10,7 @@ from typing import (
     Tuple,
 )
 
+import joblib
 import numpy as np
 import pandas as pd
 from sklearn.base import clone
@@ -614,6 +615,15 @@ class ESACompetitionBenchmark(Benchmark):
         os.makedirs(sel_dir, exist_ok=True)
         json_path = os.path.join(sel_dir, f".json")
 
+        model_dir = os.path.join(
+            self.exp_dir,
+            self.run_id,
+            "models",
+            f"channel_{channel_id}",
+        )
+        os.makedirs(model_dir, exist_ok=True)
+        model_path = os.path.join(model_dir, f"{run_id}.pkl")
+
         # carica esistente o inizializza vuoto
         if os.path.exists(json_path):
             with open(json_path, "r") as f:
@@ -638,6 +648,7 @@ class ESACompetitionBenchmark(Benchmark):
             # se c'è solo una classe, salta la CV e fai un fit diretto
             estimator = DummyClassifier(strategy="constant", constant=0)
             estimator.fit(full_train, labels_train)
+            joblib.dump(estimator, model_path)
             return estimator, 0.0
 
         # se abbiamo già un risultato valido, ricicla
@@ -671,6 +682,7 @@ class ESACompetitionBenchmark(Benchmark):
                 history[run_id]["cv_score"] = new_score
                 with open(json_path, "w") as f:
                     json.dump(history, f, indent=2)
+            joblib.dump(estimator, model_path)
             return estimator, new_score
 
         # altrimenti: esegui la BayesSearchCV
@@ -708,6 +720,7 @@ class ESACompetitionBenchmark(Benchmark):
             )
             metric_key = [k for k in cv_res if k.startswith("test_")][0]
             fallback_score = float(np.mean(cv_res[metric_key]))
+            joblib.dump(estimator, model_path)
             return estimator, fallback_score
 
         # ----- caso "normale" dopo fit riuscito -----
@@ -739,6 +752,7 @@ class ESACompetitionBenchmark(Benchmark):
         }
         with open(json_path, "w") as f:
             json.dump(history, f, indent=2)
+        joblib.dump(best_estimator, model_path)
 
         return best_estimator, best_score
 
@@ -804,7 +818,10 @@ class ESACompetitionBenchmark(Benchmark):
             best_params = prev["best_params"]
             estimator = clone(search_cv.estimator).set_params(**best_params)
             estimator.fit(X, y)
-
+            model_dir = os.path.join(self.exp_dir, self.run_id, "models")
+            os.makedirs(model_dir, exist_ok=True)
+            model_path = os.path.join(model_dir, f"event_wise_{run_id}.pkl")
+            joblib.dump(estimator, model_path)
             return estimator, prev["cv_score"]
 
         # --- 4) altrimenti: eseguo davvero la BayesSearchCV e salvo i nuovi params ---
@@ -832,6 +849,10 @@ class ESACompetitionBenchmark(Benchmark):
             with open(json_path, "w") as f:
                 json.dump(history, f, indent=2)
         # ---------------------------------------------------------
+        model_dir = os.path.join(self.exp_dir, self.run_id, "models")
+        os.makedirs(model_dir, exist_ok=True)
+        model_path = os.path.join(model_dir, f"event_wise_{run_id}.pkl")
+        joblib.dump(best_estimator, model_path)
 
         return best_estimator, best_score
 
