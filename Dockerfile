@@ -4,9 +4,11 @@ WORKDIR /app
 
 COPY . /app
 
-RUN pip install --no-cache-dir poetry \
-    && poetry install --no-dev
-
-RUN python spaceai/segmentators/setup.py build_ext --inplace
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential && \
+    pip install --no-cache-dir cython poetry && \
+    poetry install --no-dev && \
+    python spaceai/segmentators/setup.py build_ext --inplace && \
+    apt-get purge -y build-essential && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 CMD ["python", "inference.py", "--test-parquet", "/data/test.parquet", "--artifacts-dir", "/artifacts", "--output", "/data/submission.csv"]

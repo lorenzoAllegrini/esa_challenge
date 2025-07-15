@@ -19,6 +19,10 @@ sys.modules.setdefault("spaceai.segmentators.cython_functions", cython_stub)
 
 import joblib
 import numpy as np
+# Some dependencies still rely on the deprecated ``np.int`` alias.
+# Reintroduce it for the tests to avoid AttributeError with NumPy>=2.
+if not hasattr(np, "int"):
+    np.int = int  # type: ignore[attr-defined]
 import pandas as pd
 
 # Provide a minimal torch stub for dependencies
