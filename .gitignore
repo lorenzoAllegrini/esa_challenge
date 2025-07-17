@@ -15,5 +15,6 @@ __pycache__/
 manual_labeller.py
 experiments/**
 datasets/**
+old_stuff/**
 # Ambiente
 .env

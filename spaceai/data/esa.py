@@ -170,10 +170,10 @@ class ESA(
 
         if not channel_id in self.mission.all_channels:
             raise ValueError(f"Channel ID {channel_id} is not valid")
-
+        print("1")
         if download:
             self.download()
-
+        print("2")
         if not self._check_exists():
             raise RuntimeError(
                 "Dataset not found. You can use download=True to download it"

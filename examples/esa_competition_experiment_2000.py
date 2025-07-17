@@ -185,7 +185,7 @@ def main():
         internal_estimators=4,
         external_estimators=2,
         final_estimators=2,
-        skip_channel_training=True,
+        skip_channel_training=False,
         gamma=1.8,
         delta=0.0,
         beta = 0.2

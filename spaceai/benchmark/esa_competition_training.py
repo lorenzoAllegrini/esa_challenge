@@ -159,8 +159,38 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         callback_handler.start()
         try:
             search_cv.fit(full_train, labels_train)
-        finally:
-            callback_handler.stop()
+        except ValueError:
+            # ------------------- fallback -------------------------------
+            estimator = clone(search_cv.estimator)
+            estimator.fit(full_train, labels_train)
+
+            # ---- verifica se ogni fold ha entrambe le classi -----------
+            cv_ok = True
+            for tr_idx, te_idx in search_cv.cv.split(full_train, labels_train):
+                if (
+                    np.unique(labels_train[tr_idx]).size < 2
+                    or np.unique(labels_train[te_idx]).size < 2
+                ):
+                    cv_ok = False
+                    break
+
+            if not cv_ok:
+                return estimator, 0.0  # oppure 0.0
+
+            # ---- calcola comunque lo score -----------------------------
+            cv_res = cross_validate(
+                estimator,
+                full_train,
+                labels_train,
+                cv=search_cv.cv,
+                scoring=make_esa_scorer(self),
+                n_jobs=1,
+                error_score=0.0,
+            )
+            metric_key = [k for k in cv_res if k.startswith("test_")][0]
+            fallback_score = float(np.mean(cv_res[metric_key]))
+            joblib.dump(estimator, model_path)
+            return estimator, fallback_score
 
         best_estimator = search_cv.best_estimator_
         best_params = search_cv.best_params_
@@ -361,7 +391,18 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         delta: float = 0.05,
         beta: float = 0.3,
     ) -> None:
+        
         source_folder = os.path.join(self.data_root, mission.inner_dirpath)
+        if not os.path.exists(os.path.join(source_folder, "channels.csv")):
+            esa =  ESA(
+                root=self.data_root,
+                mission=mission,
+                channel_id="channel_12",
+                mode="anomaly",
+                overlapping=True,
+                seq_length=1,
+                n_predictions=1,
+            )
         meta = pd.read_csv(os.path.join(source_folder, "channels.csv")).assign(Channel=lambda d: d.Channel.str.strip())
         groups = meta[meta["Channel"].isin(mission.target_channels)].groupby("Group")["Channel"].apply(list).to_dict()
         train_channel, _ = self.load_channel(mission, "channel_12", overlapping_train=True)
@@ -389,7 +430,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 final_train = None
                 channel_cv = {}
                 for channel_id in mission.target_channels:
-                    if int(channel_id.split("_")[1]) < 41 or int(channel_id.split("_")[1]) > 48:
+                    if int(channel_id.split("_")[1]) < 41 or int(channel_id.split("_")[1]) > 47:
                         continue
                     train_channel, _ = self.load_channel(mission, channel_id, overlapping_train=True)
                     final_train, channel_score = self.channel_specific_ensemble(

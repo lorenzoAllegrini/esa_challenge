@@ -1,3 +1,5 @@
+import numpy as np
+
 def number_of_peaks_finding(array):
     if array.size == 0:
         return 0
