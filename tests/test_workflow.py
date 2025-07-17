@@ -21,6 +21,9 @@ import joblib
 import numpy as np
 import pandas as pd
 
+# Provide compatibility with scikit-optimize on NumPy>=2
+np.int = int  # type: ignore[attr-defined]
+
 # Provide a minimal torch stub for dependencies
 torch = types.ModuleType("torch")
 utils = types.ModuleType("torch.utils")
