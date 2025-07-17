@@ -191,6 +191,8 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             fallback_score = float(np.mean(cv_res[metric_key]))
             joblib.dump(estimator, model_path)
             return estimator, fallback_score
+        finally:
+            callback_handler.stop()
 
         best_estimator = search_cv.best_estimator_
         best_params = search_cv.best_params_
