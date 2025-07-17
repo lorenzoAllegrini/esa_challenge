@@ -28,6 +28,7 @@ from spaceai.segmentators.esa_segmentator2 import EsaDatasetSegmentator2
 from spaceai.utils.callbacks import (
     Callback,
     CallbackHandler,
+    SystemMonitorCallback,
 )
 from spaceai.utils.tools import (
     make_smart_masks,
@@ -101,7 +102,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         ensemble_id: str,
         callbacks: Optional[List[Callback]] = None,
         call_every_ms: int = 100,
-    ):
+    ) -> tuple[Any, float, Dict[str, Any]]:
         sel_dir = os.path.join(self.exp_dir, self.run_id, "channel_segments", channel_id)
         os.makedirs(sel_dir, exist_ok=True)
         json_path = os.path.join(sel_dir, f".json")
@@ -129,7 +130,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             estimator.fit(full_train, labels_train)
             seg_model = SegmentedModel(copy.deepcopy(estimator), copy.deepcopy(self.segmentator), ensemble_id)
             joblib.dump(seg_model, model_path)
-            return estimator, 0.0
+            return estimator, 0.0, {"time": 0.0, "cpu": 0.0, "mem": 0.0}
 
         prev = history.get(run_id)
         current_space_keys = sorted(search_cv.search_spaces.keys())
@@ -154,9 +155,9 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                     json.dump(history, f, indent=2)
             seg_model = SegmentedModel(estimator, copy.deepcopy(self.segmentator), ensemble_id)
             joblib.dump(seg_model, model_path)
-            return estimator, new_score
+            return estimator, new_score, {"time": 0.0, "cpu": 0.0, "mem": 0.0}
 
-        callback_handler = CallbackHandler(callbacks or [], call_every_ms)
+        callback_handler = CallbackHandler((callbacks or []) + [SystemMonitorCallback()], call_every_ms)
         callback_handler.start()
         try:
             search_cv.fit(full_train, labels_train)
@@ -176,7 +177,9 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                     break
 
             if not cv_ok:
-                return estimator, 0.0  # oppure 0.0
+                callback_handler.stop()
+                metrics = callback_handler.collect(reset=True)
+                return estimator, 0.0, metrics  # oppure 0.0
 
             # ---- calcola comunque lo score -----------------------------
             cv_res = cross_validate(
@@ -190,10 +193,12 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             )
             metric_key = [k for k in cv_res if k.startswith("test_")][0]
             fallback_score = float(np.mean(cv_res[metric_key]))
-            joblib.dump(estimator, model_path)
-            return estimator, fallback_score
-        finally:
             callback_handler.stop()
+            metrics = callback_handler.collect(reset=True)
+            joblib.dump(estimator, model_path)
+            return estimator, fallback_score, metrics
+        callback_handler.stop()
+        metrics = callback_handler.collect(reset=True)
 
         best_estimator = search_cv.best_estimator_
         best_params = search_cv.best_params_
@@ -218,7 +223,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             json.dump(history, f, indent=2)
         seg_model = SegmentedModel(best_estimator, copy.deepcopy(self.segmentator), ensemble_id)
         joblib.dump(seg_model, model_path)
-        return best_estimator, best_score
+        return best_estimator, best_score, metrics
 
     def channel_specific_ensemble(
         self,
@@ -234,6 +239,8 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         external_estimators: int = 5,
         internal_estimators: int = 5,
     ):
+        channel_handler = CallbackHandler([SystemMonitorCallback()], call_every_ms)
+        channel_handler.start()
         len_data = len(train_channel.data)
         external_eval1_probas = []
         eval2_masks = sample_smart_masks(
@@ -244,6 +251,12 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             rng=np.random.default_rng(int(channel_id.split("_")[1])),
         )
         scores = []
+        external_times = []
+        external_cpu = []
+        external_mem = []
+        internal_times_all = []
+        internal_cpu_all = []
+        internal_mem_all = []
         # mapping meta -> internal models for this channel
         links: dict[str, dict[str, list[str]]] = {}
         for ext_idx, mask2 in enumerate(tqdm(eval2_masks, desc="External estimators")):
@@ -281,7 +294,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                         ensemble_id=f"eval1_{self.make_run_id([tuple(mask1), tuple(shapelet_mask)])}",
                     )
                 internal_run_id = f"internal_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}"
-                internal_estimator, _ = self.channel_specific_model_selection(
+                internal_estimator, _, int_metrics = self.channel_specific_model_selection(
                     train_channel=internal_train_channel,
                     train_anomalies=internal_train_anomalies,
                     search_cv=search_cv_factory(),
@@ -291,6 +304,9 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                     call_every_ms=call_every_ms,
                     ensemble_id=f"train_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}",
                 )
+                internal_times_all.append(int_metrics.get("time", 0.0))
+                internal_cpu_all.append(int_metrics.get("cpu", 0.0))
+                internal_mem_all.append(int_metrics.get("mem", 0.0))
                 internal_ids.append(internal_run_id)
                 proba2 = internal_estimator.predict_proba(eval2_channel)
                 if proba2.shape[1] == 1:
@@ -315,7 +331,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 {f"channel_{i}": internal_eval1_probas[i] for i in range(len(internal_eval1_probas))}
             )
             meta_run_id = f"external_{self.make_run_id([tuple(mask1), tuple(mask2)])}"
-            meta_estimator, meta_score = self.channel_specific_model_selection(
+            meta_estimator, meta_score, meta_metrics = self.channel_specific_model_selection(
                 train_channel=meta_train_df,
                 train_anomalies=eval2_anomalies,
                 search_cv=search_cv_factory2(),
@@ -325,6 +341,9 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 call_every_ms=call_every_ms,
                 ensemble_id=f"meta_{self.make_run_id([tuple(mask1), tuple(mask2)])}",
             )
+            external_times.append(meta_metrics.get("time", 0.0))
+            external_cpu.append(meta_metrics.get("cpu", 0.0))
+            external_mem.append(meta_metrics.get("mem", 0.0))
             scores.append(meta_score)
             probas_eval1 = meta_estimator.predict_proba(meta_eval1_df)
             if probas_eval1.shape[1] == 1:
@@ -389,6 +408,25 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             placeholder.fit([[0], [1]], [0, 1])
             joblib.dump(placeholder, os.path.join(model_dir, "external_dummy.pkl"))
 
+        channel_handler.stop()
+        channel_metrics = channel_handler.collect(reset=True)
+        channel_log = {
+            "channel_id": channel_id,
+            "avg_internal_time": float(np.mean(internal_times_all)) if internal_times_all else 0.0,
+            "avg_internal_cpu": float(np.mean(internal_cpu_all)) if internal_cpu_all else 0.0,
+            "avg_internal_mem": float(np.mean(internal_mem_all)) if internal_mem_all else 0.0,
+            "avg_external_time": float(np.mean(external_times)) if external_times else 0.0,
+            "avg_external_cpu": float(np.mean(external_cpu)) if external_cpu else 0.0,
+            "avg_external_mem": float(np.mean(external_mem)) if external_mem else 0.0,
+            "channel_time": channel_metrics.get("time", 0.0),
+            "channel_cpu": channel_metrics.get("cpu", 0.0),
+            "channel_mem": channel_metrics.get("mem", 0.0),
+        }
+        self.all_logs.append(channel_log)
+        pd.DataFrame.from_records(self.all_logs).to_csv(
+            os.path.join(self.exp_dir, self.run_id, "efficiency_log.csv"), index=False
+        )
+
         return final_train, np.mean(np.array(scores))
 
     def run(
@@ -437,6 +475,8 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         for fold_idx, mask1 in enumerate(masks1):
             if fold_idx == 0:
                 continue
+            fold_handler = CallbackHandler([SystemMonitorCallback()], call_every_ms)
+            fold_handler.start()
             feat_dir = os.path.join(self.exp_dir, self.run_id)
             os.makedirs(feat_dir, exist_ok=True)
             mask_run_id = self.make_run_id([tuple(mask1)])
@@ -484,5 +524,18 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 call_every_ms=100,
                 flat=flat,
                 run_id=self.make_run_id([tuple(mask1)]),
+            )
+            fold_handler.stop()
+            fold_metrics = fold_handler.collect(reset=True)
+            self.all_logs.append(
+                {
+                    "fold_id": fold_idx,
+                    "fold_time": fold_metrics.get("time", 0.0),
+                    "fold_cpu": fold_metrics.get("cpu", 0.0),
+                    "fold_mem": fold_metrics.get("mem", 0.0),
+                }
+            )
+            pd.DataFrame.from_records(self.all_logs).to_csv(
+                os.path.join(self.exp_dir, self.run_id, "efficiency_log.csv"), index=False
             )
         return None
