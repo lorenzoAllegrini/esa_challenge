@@ -102,13 +102,16 @@ def main():
         segmentator=segmentator,
     )
     
+    # Parameters are passed directly to ``XGBClassifier`` so they should not
+    # include any pipeline prefix such as ``classifier__``. Otherwise, XGBoost
+    # will ignore them and emit warnings during training.
     xgb_param_space = {
-        "classifier__scale_pos_weight": Real(0.2, 1.0),
-        "classifier__n_estimators": Integer(1000, 1500),
-        "classifier__max_depth": Integer(6, 9),
-        "classifier__learning_rate": Real(0.001, 0.01),
-        "classifier__min_child_weight": Integer(1, 3),
-        "classifier__colsample_bytree": Real(0.7,1.0)
+        "scale_pos_weight": Real(0.2, 1.0),
+        "n_estimators": Integer(1000, 1500),
+        "max_depth": Integer(6, 9),
+        "learning_rate": Real(0.001, 0.01),
+        "min_child_weight": Integer(1, 3),
+        "colsample_bytree": Real(0.7, 1.0),
     }
     xgb_scorer = make_scorer(partial(esa_scorer, benchmark=benchmark), greater_is_better=True)
     

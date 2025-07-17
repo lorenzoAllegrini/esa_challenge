@@ -706,6 +706,7 @@ class ESACompetitionBenchmark(Benchmark):
                     break
 
             if not cv_ok:
+                joblib.dump(estimator, model_path)
                 return estimator, 0.0  # oppure 0.0
 
             # ---- calcola comunque lo score -----------------------------
@@ -789,6 +790,21 @@ class ESACompetitionBenchmark(Benchmark):
             seq_len = search_cv.search_spaces.get("lstm__seq_len", 5)
             X, y = self.create_sliding_sequences(train_set, feat, seq_len)
 
+        # In rare cases all labels may belong to a single class, causing
+        # estimators such as ``LogisticRegression`` to fail during fitting.
+        # When this happens, fall back to a dummy classifier that always
+        # predicts the majority class.
+        unique = np.unique(y)
+        if unique.size < 2:
+            majority = int(unique[0]) if unique.size == 1 else 0
+            estimator = DummyClassifier(strategy="constant", constant=majority)
+            estimator.fit(X, y)
+            model_dir = os.path.join(self.exp_dir, self.run_id, "models")
+            os.makedirs(model_dir, exist_ok=True)
+            model_path = os.path.join(model_dir, f"event_wise_{run_id}.pkl")
+            joblib.dump(estimator, model_path)
+            return estimator, 0.0
+
         # --- 2) preparo path e carico (o inizializzo) il file di storicizzazione ---
         sel_dir = os.path.join(self.exp_dir, self.run_id)
         os.makedirs(sel_dir, exist_ok=True)
@@ -827,8 +843,19 @@ class ESACompetitionBenchmark(Benchmark):
         # --- 4) altrimenti: eseguo davvero la BayesSearchCV e salvo i nuovi params ---
         callback_handler = CallbackHandler(callbacks or [], call_every_ms)
         callback_handler.start()
+        search_cv.set_params(error_score=0.0)
         try:
             search_cv.fit(X, y)
+        except ValueError:
+            # fall back to a constant classifier when CV cannot be performed
+            callback_handler.stop()
+            estimator = DummyClassifier(strategy="constant", constant=0)
+            estimator.fit(X, y)
+            model_dir = os.path.join(self.exp_dir, self.run_id, "models")
+            os.makedirs(model_dir, exist_ok=True)
+            model_path = os.path.join(model_dir, f"event_wise_{run_id}.pkl")
+            joblib.dump(estimator, model_path)
+            return estimator, 0.0
         finally:
             callback_handler.stop()
 
