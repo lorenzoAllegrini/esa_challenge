@@ -132,6 +132,26 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             joblib.dump(seg_model, model_path)
             return estimator, 0.0, {"time": 0.0, "cpu": 0.0, "mem": 0.0}
 
+        # Ensure every CV split contains both classes, otherwise CV-based
+        # model selection would fail with ``ValueError``.  When a degenerate
+        # split is detected fall back to a constant classifier.
+        cv_ok = True
+        for tr_idx, te_idx in search_cv.cv.split(full_train, labels_train):
+            if (
+                np.unique(labels_train[tr_idx]).size < 2
+                or np.unique(labels_train[te_idx]).size < 2
+            ):
+                cv_ok = False
+                break
+
+        if not cv_ok:
+            majority = int(np.bincount(labels_train).argmax())
+            estimator = DummyClassifier(strategy="constant", constant=majority)
+            estimator.fit(full_train, labels_train)
+            seg_model = SegmentedModel(copy.deepcopy(estimator), copy.deepcopy(self.segmentator), ensemble_id)
+            joblib.dump(seg_model, model_path)
+            return estimator, 0.0, {"time": 0.0, "cpu": 0.0, "mem": 0.0}
+
         prev = history.get(run_id)
         current_space_keys = sorted(search_cv.search_spaces.keys())
         if prev is not None and desired_n is not None and prev.get("n_iter", 0) >= desired_n:
