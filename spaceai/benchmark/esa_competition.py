@@ -805,6 +805,26 @@ class ESACompetitionBenchmark(Benchmark):
             joblib.dump(estimator, model_path)
             return estimator, 0.0
 
+        # skip hyperparameter search when any CV split lacks both classes
+        cv_ok = True
+        for tr_idx, te_idx in search_cv.cv.split(X, y):
+            if (
+                np.unique(y[tr_idx]).size < 2
+                or np.unique(y[te_idx]).size < 2
+            ):
+                cv_ok = False
+                break
+
+        if not cv_ok:
+            majority = int(np.bincount(y).argmax())
+            estimator = DummyClassifier(strategy="constant", constant=majority)
+            estimator.fit(X, y)
+            model_dir = os.path.join(self.exp_dir, self.run_id, "models")
+            os.makedirs(model_dir, exist_ok=True)
+            model_path = os.path.join(model_dir, f"event_wise_{run_id}.pkl")
+            joblib.dump(estimator, model_path)
+            return estimator, 0.0
+
         # --- 2) preparo path e carico (o inizializzo) il file di storicizzazione ---
         sel_dir = os.path.join(self.exp_dir, self.run_id)
         os.makedirs(sel_dir, exist_ok=True)
