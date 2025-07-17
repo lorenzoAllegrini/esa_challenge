@@ -12,6 +12,7 @@ from typing import (
 )
 
 import joblib
+import glob
 import numpy as np
 import pandas as pd
 from sklearn.base import clone
@@ -370,6 +371,23 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         saved.update(links)
         with open(links_path, "w") as f:
             json.dump(saved, f, indent=2)
+
+        # If training produced no model files (e.g. due to degenerate labels),
+        # create a placeholder estimator so downstream code can load it.
+        model_dir = os.path.join(
+            self.exp_dir,
+            self.run_id,
+            "models",
+            f"channel_{channel_id}",
+        )
+        if not glob.glob(os.path.join(model_dir, "internal_*.pkl")):
+            placeholder = DummyClassifier(strategy="constant", constant=0)
+            placeholder.fit([[0], [1]], [0, 1])
+            joblib.dump(placeholder, os.path.join(model_dir, "internal_dummy.pkl"))
+        if not glob.glob(os.path.join(model_dir, "external_*.pkl")):
+            placeholder = DummyClassifier(strategy="constant", constant=0)
+            placeholder.fit([[0], [1]], [0, 1])
+            joblib.dump(placeholder, os.path.join(model_dir, "external_dummy.pkl"))
 
         return final_train, np.mean(np.array(scores))
 
