@@ -44,6 +44,15 @@ class ShapeletMiner:
         self.scores = None
         self.skip = skip
 
+    def _random_kernels(self) -> list[np.ndarray]:
+        """Return a list of random kernels used as fallback."""
+        kernels: list[np.ndarray] = []
+        rng = np.random.default_rng()
+        for _ in range(self.num_kernels):
+            L = rng.integers(self.k_min_length, self.k_max_length + 1)
+            kernels.append(rng.dirichlet(np.ones(L)).astype(np.float32))
+        return kernels
+
     def initialize_kernels(
         self, esa_channel: ESA, mask: Tuple[int, int], ensemble_id: str
     ):
@@ -88,6 +97,7 @@ class ShapeletMiner:
             return
 
         if self.skip:
+            self.kernels = self._random_kernels()
             return
         anomaly_pools, padded_intervals, nominal_segments = [], [], []
 
