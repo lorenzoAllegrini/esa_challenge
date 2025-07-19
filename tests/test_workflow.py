@@ -92,12 +92,57 @@ class DummySegmentator:
     def __init__(self):
         self.shapelet_miner = DummyShapeletMiner()
 
-    def segment(self, esa_channel, masks, ensemble_id, train_phase=False):
+    def segment_statistical(self, esa_channel, masks, ensemble_id, train_phase=False):
         n = len(esa_channel.data)
-        df = pd.DataFrame(
-            {"start": np.arange(n), "end": np.arange(n), "val": esa_channel.data[:, 0]}
-        )
+        df = pd.DataFrame({
+            "start": np.arange(n),
+            "end": np.arange(n),
+            "val": esa_channel.data[:, 0],
+        })
         return df, esa_channel.anomalies
+
+    def add_shapelet_features(self, df, esa_channel, mask, ensemble_id):
+        df = df.copy()
+        df["shape"] = 0.0
+        return df
+
+    def segment_shapelets(
+        self,
+        df,
+        anomalies,
+        esa_channel,
+        shapelet_mask,
+        *,
+        exclude_masks=None,
+        include_mask=None,
+        ensemble_id="",
+    ):
+        if exclude_masks:
+            mask_bool = np.ones(len(df), dtype=bool)
+            for ms in exclude_masks:
+                mask_bool &= ~((df["start"] < ms[1]) & (df["end"] > ms[0]))
+            df = df[mask_bool].reset_index(drop=True)
+        if include_mask is not None:
+            mask_bool = (df["start"] >= include_mask[0]) & (df["end"] <= include_mask[1])
+            df = df[mask_bool].reset_index(drop=True)
+        df = self.add_shapelet_features(df, esa_channel, shapelet_mask, ensemble_id)
+        return df, anomalies
+
+    def get_event_intervals(self, segments, label):
+        labels = [int(s[0]) for s in segments]
+        intervals = []
+        start = None
+        for idx, val in enumerate(labels):
+            if val == label:
+                if start is None:
+                    start = idx
+            else:
+                if start is not None:
+                    intervals.append([start, idx - 1])
+                    start = None
+        if start is not None:
+            intervals.append([start, len(labels) - 1])
+        return intervals
 
 
 def create_dataset(tmpdir, channel_id="channel_12"):

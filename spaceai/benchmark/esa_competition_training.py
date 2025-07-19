@@ -48,12 +48,19 @@ class SegmentedModel:
     ensemble_id: str
 
     def predict_proba(self, esa_channel):
-        self.segmentator.shapelet_miner.initialize_kernels(
+        df, anoms = self.segmentator.segment_statistical(
             esa_channel,
-            mask=(0, len(esa_channel.data)),
+            masks=[],
+            ensemble_id=self.ensemble_id,
+            train_phase=False,
+        )
+        df, _ = self.segmentator.segment_shapelets(
+            df,
+            anoms,
+            esa_channel,
+            (0, len(esa_channel.data)),
             ensemble_id=self.ensemble_id,
         )
-        df, _ = self.segmentator.segment(esa_channel, masks=[], ensemble_id=self.ensemble_id, train_phase=False)
         return self.model.predict_proba(df)
 
 
@@ -126,7 +133,8 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             labels_train[s : e + 1] = 1
 
         if np.unique(labels_train).size < 2:
-            estimator = DummyClassifier(strategy="constant", constant=0)
+            majority = int(np.bincount(labels_train).argmax())
+            estimator = DummyClassifier(strategy="constant", constant=majority)
             estimator.fit(full_train, labels_train)
             seg_model = SegmentedModel(copy.deepcopy(estimator), copy.deepcopy(self.segmentator), ensemble_id)
             joblib.dump(seg_model, model_path)
@@ -262,6 +270,14 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         channel_handler = CallbackHandler([SystemMonitorCallback()], call_every_ms)
         channel_handler.start()
         len_data = len(train_channel.data)
+        # Pre-compute statistical features once for this channel
+        stats_df, stats_anoms = self.segmentator.segment_statistical(
+            train_channel,
+            masks=[],
+            ensemble_id=f"stats_{channel_id}",
+            train_phase=True,
+        )
+
         external_eval1_probas = []
         eval2_masks = sample_smart_masks(
             len_data,
@@ -294,23 +310,28 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 tqdm(shapelet_masks, desc=f"  Internals for ext={ext_idx}", leave=False)
             ):
                 if self.segmentator is not None:
-                    self.segmentator.shapelet_miner.initialize_kernels(
-                        train_channel, shapelet_mask, self.make_run_id([shapelet_mask])
-                    )
-                    internal_train_channel, internal_train_anomalies = self.segmentator.segment(
+                    internal_train_channel, internal_train_anomalies = self.segmentator.segment_shapelets(
+                        stats_df,
+                        stats_anoms,
                         train_channel,
-                        masks=[tuple(mask1), tuple(mask2), tuple(shapelet_mask)],
-                        train_phase=True,
+                        shapelet_mask,
+                        exclude_masks=[tuple(mask1), tuple(mask2), tuple(shapelet_mask)],
                         ensemble_id=f"train_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}",
                     )
-                    eval2_channel, eval2_anomalies = self.segmentator.segment(
+                    eval2_channel, eval2_anomalies = self.segmentator.segment_shapelets(
+                        stats_df,
+                        stats_anoms,
                         train_channel,
-                        masks=[mask2],
+                        shapelet_mask,
+                        include_mask=mask2,
                         ensemble_id=f"eval2_{self.make_run_id([tuple(mask2), tuple(shapelet_mask)])}",
                     )
-                    eval1_channel, eval1_anomalies = self.segmentator.segment(
+                    eval1_channel, eval1_anomalies = self.segmentator.segment_shapelets(
+                        stats_df,
+                        stats_anoms,
                         train_channel,
-                        masks=[mask1],
+                        shapelet_mask,
+                        include_mask=mask1,
                         ensemble_id=f"eval1_{self.make_run_id([tuple(mask1), tuple(shapelet_mask)])}",
                     )
                 internal_run_id = f"internal_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}"
