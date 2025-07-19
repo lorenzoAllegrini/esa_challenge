@@ -30,6 +30,7 @@ from spaceai.segmentators.cython_functions import (
     moving_average_error,
     spearman_correlation,
     stft_spectral_std,
+    _apply_kernels2,
 )
 from spaceai.segmentators.functions import (
     autoregressive_deviation,
@@ -223,6 +224,110 @@ class EsaDatasetSegmentator2:
         # Rimuovo i campi interni 'event'
         df = df.drop(columns=df.filter(like="event").columns)
         return df, anomalies
+
+    # ------------------------------------------------------------------
+    #  New two-step preprocessing helpers
+    # ------------------------------------------------------------------
+    def segment_statistical(
+        self,
+        esa_channel: ESA,
+        masks: List[Tuple[int, int]],
+        ensemble_id: str,
+        train_phase: bool = False,
+    ):
+        """Compute only statistical features for a channel."""
+        masks = sorted(masks, key=lambda iv: iv[0])
+        output_dir = os.path.join(
+            self.exp_dir, self.run_id, "channel_segments", esa_channel.channel_id
+        )
+        os.makedirs(output_dir, exist_ok=True)
+
+        pq_path = os.path.join(output_dir, f"{ensemble_id}.parquet")
+        if os.path.exists(pq_path):
+            df = pd.read_parquet(pq_path)
+            segments = df.values.tolist()
+            anomalies = self.get_event_intervals(segments, label=1)
+        else:
+            orig_shapelets = self.use_shapelets
+            self.use_shapelets = False
+            segments: List[List[float]] = apply_transformations_to_channel_cython(
+                self,
+                esa_channel.data,
+                np.array(esa_channel.anomalies),
+                np.array(masks),
+                train=train_phase,
+            )
+            self.use_shapelets = orig_shapelets
+
+            base_columns = ["event", "start", "end"] + self.transformations.copy()
+
+            if self.step_difference_feature:
+                mean_idx = base_columns.index("mean")
+                max_idx = base_columns.index("max")
+                min_idx = base_columns.index("min")
+                for i, row in enumerate(segments):
+                    for n in range(1, 6):
+                        if i >= n:
+                            diff_mean = row[mean_idx] - segments[i - n][mean_idx]
+                            diff_max = row[max_idx] - segments[i - n][max_idx]
+                            diff_min = row[min_idx] - segments[i - n][min_idx]
+                        else:
+                            diff_mean = diff_max = diff_min = 0.0
+                        row.append(diff_mean)
+                        row.append(diff_max)
+                        row.append(diff_min)
+                for n in range(1, 6):
+                    base_columns.append(f"step_difference_{n}")
+                    base_columns.append(f"maximum_difference_{n}")
+                    base_columns.append(f"minimum_difference_{n}")
+
+            if self.telecommands:
+                base_columns += [
+                    f"telecommand_{i}" for i in range(1, esa_channel.data.shape[1])
+                ]
+
+            if self.poolings:
+                segments, pooled_columns = self.pooling_segmentation(
+                    segments, base_columns
+                )
+            else:
+                pooled_columns = base_columns
+
+            anomalies = self.get_event_intervals(segments, label=1)
+            df = pd.DataFrame(segments, columns=pooled_columns)
+            df.to_parquet(pq_path, index=False)
+
+        df = df.drop(columns=df.filter(like="event").columns)
+        return df, anomalies
+
+    def add_shapelet_features(
+        self,
+        df: pd.DataFrame,
+        esa_channel: ESA,
+        mask: Tuple[int, int],
+        ensemble_id: str,
+    ) -> pd.DataFrame:
+        """Append shapelet responses to ``df`` for the given ``mask``."""
+        if df.empty:
+            return df
+        self.shapelet_miner.initialize_kernels(
+            esa_channel, mask=mask, ensemble_id=ensemble_id
+        )
+
+        windows = []
+        for _, row in df.iterrows():
+            start, end = int(row["start"]), int(row["end"])
+            windows.append(esa_channel.data[start:end, 0].astype(np.float32))
+        X = np.stack(windows)[:, np.newaxis, :]
+        raw_features = _apply_kernels2(
+            X, self.shapelet_miner.process_kernels(self.shapelet_miner.kernels)
+        )
+
+        df = df.reset_index(drop=True).copy()
+        for i in range(self.shapelet_miner.num_kernels):
+            df[f"kernel_{i}_max_convolution"] = raw_features[:, 2 * i]
+            df[f"kernel_{i}_min_convolution"] = raw_features[:, 2 * i + 1]
+        return df
 
     def pooling_segmentation(
         self, segments: List[List[float]], columns: List[str]

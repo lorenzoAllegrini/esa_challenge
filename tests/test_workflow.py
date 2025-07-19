@@ -92,12 +92,35 @@ class DummySegmentator:
     def __init__(self):
         self.shapelet_miner = DummyShapeletMiner()
 
-    def segment(self, esa_channel, masks, ensemble_id, train_phase=False):
+    def segment_statistical(self, esa_channel, masks, ensemble_id, train_phase=False):
         n = len(esa_channel.data)
-        df = pd.DataFrame(
-            {"start": np.arange(n), "end": np.arange(n), "val": esa_channel.data[:, 0]}
-        )
+        df = pd.DataFrame({
+            "start": np.arange(n),
+            "end": np.arange(n),
+            "val": esa_channel.data[:, 0],
+        })
         return df, esa_channel.anomalies
+
+    def add_shapelet_features(self, df, esa_channel, mask, ensemble_id):
+        df = df.copy()
+        df["shape"] = 0.0
+        return df
+
+    def get_event_intervals(self, segments, label):
+        labels = [int(s[0]) for s in segments]
+        intervals = []
+        start = None
+        for idx, val in enumerate(labels):
+            if val == label:
+                if start is None:
+                    start = idx
+            else:
+                if start is not None:
+                    intervals.append([start, idx - 1])
+                    start = None
+        if start is not None:
+            intervals.append([start, len(labels) - 1])
+        return intervals
 
 
 def create_dataset(tmpdir, channel_id="channel_12"):
