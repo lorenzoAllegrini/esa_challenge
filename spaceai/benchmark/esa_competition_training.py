@@ -549,8 +549,8 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 final_train = None
                 channel_cv = {}
                 for channel_id in mission.target_channels:
-                    if int(channel_id.split("_")[1]) < 41 or int(channel_id.split("_")[1]) > 47:
-                        continue
+                    #if int(channel_id.split("_")[1]) < 41 or int(channel_id.split("_")[1]) > 47:
+                        #continue
                     train_channel, _ = self.load_channel(mission, channel_id, overlapping_train=True)
                     final_train, channel_score = self.channel_specific_ensemble(
                         train_channel=train_channel,

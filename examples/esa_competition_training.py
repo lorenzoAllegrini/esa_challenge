@@ -29,10 +29,10 @@ def make_logistic_search_cv(pipeline, space, scorer):
         search_spaces=space,
         scoring=scorer,
         cv=TimeSeriesSplit(n_splits=3),
-        n_iter=50,
+        n_iter=1,
         n_jobs=-1,
         verbose=3,
-        error_score='raise'
+        error_score=0.0
     )
 
 def make_xgb_search_cv(pipeline, space, scorer):
@@ -43,7 +43,7 @@ def make_xgb_search_cv(pipeline, space, scorer):
         cv=TimeSeriesSplit(n_splits=3),
         verbose=0,
         n_jobs=-1,
-        n_iter=30,
+        n_iter=1,
         error_score=0.0
     )
 
@@ -67,17 +67,19 @@ def main():
     parser.add_argument("--data-root", default="datasets")
     args = parser.parse_args()
 
-    num_kernels = 5
-    segment_duration = 1000
-    step_duration = 200
+    num_kernels = 10
+    segment_duration = 50
+    step_duration = 10
+    # --- Section 1: Shapelet Miner Setup ---
     shapelet_miner = ShapeletMiner(
-        k_min_length=1599,
-        k_max_length=1600,
+        k_min_length=30,
+        k_max_length=40,
         num_kernels=num_kernels,
-        segment_duration=1000,
-        step_duration=200,
-        run_id=args.run_id,
-        exp_dir=args.exp_dir,
+        segment_duration=segment_duration,
+        step_duration=step_duration,
+        run_id="esa_training", 
+        exp_dir="experiments",
+        skip=False
     )
 
     segmentator = EsaDatasetSegmentator2(
@@ -86,12 +88,12 @@ def main():
         step_duration=step_duration,
         shapelet_miner=shapelet_miner,
         telecommands=False,
-        pooling_segment_len=10,
-        pooling_segment_stride=1,
+        pooling_segment_len=200,
+        pooling_segment_stride=20,
         poolings=["max", "min"],
-        run_id="esa_competition_500", 
+        run_id="esa_training", 
         exp_dir="experiments", 
-        use_shapelets=False
+        use_shapelets=True
     )
 
 
