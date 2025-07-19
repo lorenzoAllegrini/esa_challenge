@@ -106,6 +106,30 @@ class DummySegmentator:
         df["shape"] = 0.0
         return df
 
+    def segment_shapelets(
+        self,
+        df,
+        labels,
+        esa_channel,
+        mask,
+        ensemble_id,
+        masks=None,
+        mode="exclude",
+    ):
+        mask_bool = np.ones(len(df), dtype=bool)
+        if masks:
+            if mode == "exclude":
+                for ms in masks:
+                    mask_bool &= ~((df["start"] < ms[1]) & (df["end"] > ms[0]))
+            else:
+                ms = masks[0]
+                mask_bool &= (df["start"] >= ms[0]) & (df["end"] <= ms[1])
+        new_df = df[mask_bool].reset_index(drop=True)
+        new_labels = np.array(labels)[mask_bool]
+        new_df = self.add_shapelet_features(new_df, esa_channel, mask, ensemble_id)
+        segments = [[int(l)] for l in new_labels]
+        return new_df, self.get_event_intervals(segments, 1)
+
     def get_event_intervals(self, segments, label):
         labels = [int(s[0]) for s in segments]
         intervals = []

@@ -48,17 +48,25 @@ class SegmentedModel:
     ensemble_id: str
 
     def predict_proba(self, esa_channel):
-        df, _ = self.segmentator.segment_statistical(
+        df, anoms = self.segmentator.segment_statistical(
             esa_channel,
             masks=[],
             ensemble_id=self.ensemble_id,
             train_phase=False,
         )
-        df = self.segmentator.add_shapelet_features(
-            df,
-            esa_channel,
+        labels = np.zeros(len(df), dtype=int)
+        for s, e in anoms:
+            s = max(0, s)
+            e = min(len(df) - 1, e)
+            labels[s : e + 1] = 1
+        df, _ = self.segmentator.segment_shapelets(
+            df=df,
+            labels=labels,
+            esa_channel=esa_channel,
             mask=(0, len(esa_channel.data)),
             ensemble_id=self.ensemble_id,
+            masks=None,
+            mode="exclude",
         )
         return self.model.predict_proba(df)
 
@@ -282,21 +290,6 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             e = min(len(stats_df) - 1, e)
             labels_all[s : e + 1] = 1
 
-        def exclude_masks(df: pd.DataFrame, masks: List[Tuple[int, int]]):
-            mask_bool = np.ones(len(df), dtype=bool)
-            for ms in masks:
-                mask_bool &= ~((df["start"] < ms[1]) & (df["end"] > ms[0]))
-            new_df = df[mask_bool].reset_index(drop=True)
-            new_lab = labels_all[mask_bool]
-            segments = [[int(l)] for l in new_lab]
-            return new_df, self.segmentator.get_event_intervals(segments, 1)
-
-        def include_mask(df: pd.DataFrame, mask: Tuple[int, int]):
-            mask_bool = (df["start"] >= mask[0]) & (df["end"] <= mask[1])
-            new_df = df[mask_bool].reset_index(drop=True)
-            new_lab = labels_all[mask_bool]
-            segments = [[int(l)] for l in new_lab]
-            return new_df, self.segmentator.get_event_intervals(segments, 1)
 
         external_eval1_probas = []
         eval2_masks = sample_smart_masks(
@@ -330,31 +323,35 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 tqdm(shapelet_masks, desc=f"  Internals for ext={ext_idx}", leave=False)
             ):
                 if self.segmentator is not None:
-                    train_df, train_anoms = exclude_masks(
-                        stats_df, [tuple(mask1), tuple(mask2), tuple(shapelet_mask)]
-                    )
-                    eval2_df, eval2_anomalies = include_mask(stats_df, mask2)
-                    eval1_df, eval1_anomalies = include_mask(stats_df, mask1)
-
-                    internal_train_channel = self.segmentator.add_shapelet_features(
-                        train_df,
-                        train_channel,
-                        shapelet_mask,
+                    internal_train_channel, internal_train_anomalies = self.segmentator.segment_shapelets(
+                        df=stats_df,
+                        labels=labels_all,
+                        esa_channel=train_channel,
+                        mask=shapelet_mask,
                         ensemble_id=f"train_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}",
+                        masks=[tuple(mask1), tuple(mask2), tuple(shapelet_mask)],
+                        mode="exclude",
                     )
-                    eval2_channel = self.segmentator.add_shapelet_features(
-                        eval2_df,
-                        train_channel,
-                        shapelet_mask,
+
+                    eval2_channel, eval2_anomalies = self.segmentator.segment_shapelets(
+                        df=stats_df,
+                        labels=labels_all,
+                        esa_channel=train_channel,
+                        mask=shapelet_mask,
                         ensemble_id=f"eval2_{self.make_run_id([tuple(mask2), tuple(shapelet_mask)])}",
+                        masks=[tuple(mask2)],
+                        mode="include",
                     )
-                    eval1_channel = self.segmentator.add_shapelet_features(
-                        eval1_df,
-                        train_channel,
-                        shapelet_mask,
+
+                    eval1_channel, eval1_anomalies = self.segmentator.segment_shapelets(
+                        df=stats_df,
+                        labels=labels_all,
+                        esa_channel=train_channel,
+                        mask=shapelet_mask,
                         ensemble_id=f"eval1_{self.make_run_id([tuple(mask1), tuple(shapelet_mask)])}",
+                        masks=[tuple(mask1)],
+                        mode="include",
                     )
-                    internal_train_anomalies = train_anoms
                 internal_run_id = f"internal_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}"
                 internal_estimator, _, int_metrics = self.channel_specific_model_selection(
                     train_channel=internal_train_channel,
