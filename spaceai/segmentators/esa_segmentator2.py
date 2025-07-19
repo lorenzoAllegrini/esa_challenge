@@ -380,3 +380,63 @@ class EsaDatasetSegmentator2:
 
         intervals = [[group[0], group[-1]] for group in groups]
         return intervals
+
+    def segment_shapelets(
+        self,
+        df: pd.DataFrame,
+        labels: np.ndarray,
+        esa_channel: ESA,
+        mask: Tuple[int, int],
+        ensemble_id: str,
+        masks: Optional[List[Tuple[int, int]]] = None,
+        mode: str = "exclude",
+    ) -> Tuple[pd.DataFrame, List[List[int]]]:
+        """Return a masked dataset enriched with shapelet features.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Pre-computed statistical features.
+        labels : np.ndarray
+            Binary labels for each row in ``df`` used to rebuild anomaly
+            intervals after masking.
+        esa_channel : ESA
+            Channel object providing the raw data for shapelet responses.
+        mask : Tuple[int, int]
+            Interval used to mine shapelets.
+        ensemble_id : str
+            Identifier to cache shapelet kernels on disk.
+        masks : list[Tuple[int, int]], optional
+            Intervals to exclude or include depending on ``mode``.
+        mode : {"exclude", "include"}
+            How to interpret ``masks``. ``"exclude"`` removes all rows
+            overlapping any mask while ``"include"`` keeps only the rows
+            fully contained in the single provided mask.
+
+        Returns
+        -------
+        Tuple[pd.DataFrame, list[list[int]]]
+            The selected DataFrame extended with shapelet responses and the
+            corresponding anomaly intervals.
+        """
+
+        mask_bool = np.ones(len(df), dtype=bool)
+        if masks:
+            if mode == "exclude":
+                for ms in masks:
+                    mask_bool &= ~((df["start"] < ms[1]) & (df["end"] > ms[0]))
+            elif mode == "include":
+                ms = masks[0]
+                mask_bool &= (df["start"] >= ms[0]) & (df["end"] <= ms[1])
+            else:
+                raise ValueError("mode must be 'exclude' or 'include'")
+
+        sub_df = df[mask_bool].reset_index(drop=True)
+        sub_labels = labels[mask_bool]
+
+        sub_df = self.add_shapelet_features(
+            sub_df, esa_channel, mask=mask, ensemble_id=ensemble_id
+        )
+        segs = [[int(l)] for l in sub_labels]
+        anoms = self.get_event_intervals(segs, 1)
+        return sub_df, anoms
