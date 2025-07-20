@@ -236,6 +236,7 @@ class EsaDatasetSegmentator2:
         train_phase: bool = False,
     ):
         """Compute only statistical features for a channel."""
+        print(esa_channel.data)
         masks = sorted(masks, key=lambda iv: iv[0])
         output_dir = os.path.join(
             self.exp_dir, self.run_id, "channel_segments", esa_channel.channel_id
@@ -257,6 +258,7 @@ class EsaDatasetSegmentator2:
                 np.array(masks),
                 train=train_phase,
             )
+           
             self.use_shapelets = orig_shapelets
 
             base_columns = ["event", "start", "end"] + self.transformations.copy()
@@ -286,15 +288,9 @@ class EsaDatasetSegmentator2:
                     f"telecommand_{i}" for i in range(1, esa_channel.data.shape[1])
                 ]
 
-            if self.poolings:
-                segments, pooled_columns = self.pooling_segmentation(
-                    segments, base_columns
-                )
-            else:
-                pooled_columns = base_columns
 
             anomalies = self.get_event_intervals(segments, label=1)
-            df = pd.DataFrame(segments, columns=pooled_columns)
+            df = pd.DataFrame(segments, columns=base_columns)
             df.to_parquet(pq_path, index=False)
 
         df = df.drop(columns=df.filter(like="event").columns)
@@ -306,13 +302,15 @@ class EsaDatasetSegmentator2:
         esa_channel: ESA,
         mask: Tuple[int, int],
         ensemble_id: str,
+        initialize=True
     ) -> pd.DataFrame:
         """Append shapelet responses to ``df`` for the given ``mask``."""
         if df.empty:
             return df
-        self.shapelet_miner.initialize_kernels(
-            esa_channel, mask=mask, ensemble_id=ensemble_id
-        )
+        if initialize:
+            self.shapelet_miner.initialize_kernels(
+                esa_channel, mask=mask, ensemble_id=ensemble_id
+            )
 
         windows = []
         for _, row in df.iterrows():
@@ -327,6 +325,7 @@ class EsaDatasetSegmentator2:
         for i in range(self.shapelet_miner.num_kernels):
             df[f"kernel_{i}_max_convolution"] = raw_features[:, 2 * i]
             df[f"kernel_{i}_min_convolution"] = raw_features[:, 2 * i + 1]
+        
         return df
 
     def pooling_segmentation(
@@ -366,6 +365,7 @@ class EsaDatasetSegmentator2:
                 else:
                     for pooling in self.poolings:
                         func = self.available_poolings[pooling]
+                        print(func)
                         row.append(func(window[:, j], axis=0))
             new_segments.append(row)
 
@@ -384,12 +384,13 @@ class EsaDatasetSegmentator2:
     def segment_shapelets(
         self,
         df: pd.DataFrame,
-        labels: np.ndarray,
         esa_channel: ESA,
-        mask: Tuple[int, int],
+        shapelet_mask: Tuple[int, int],
         ensemble_id: str,
         masks: Optional[List[Tuple[int, int]]] = None,
         mode: str = "exclude",
+        initialize=False,
+        labels: Optional[np.ndarray] = None,
     ) -> Tuple[pd.DataFrame, List[List[int]]]:
         """Return a masked dataset enriched with shapelet features.
 
@@ -432,11 +433,25 @@ class EsaDatasetSegmentator2:
                 raise ValueError("mode must be 'exclude' or 'include'")
 
         sub_df = df[mask_bool].reset_index(drop=True)
-        sub_labels = labels[mask_bool]
-
+        if labels is not None:
+            sub_labels = labels[mask_bool]
+            segs = [[int(l)] for l in sub_labels]
+            anoms = self.get_event_intervals(segs, 1)
+        else: 
+            anoms = None
+        
         sub_df = self.add_shapelet_features(
-            sub_df, esa_channel, mask=mask, ensemble_id=ensemble_id
+            sub_df, esa_channel, mask=shapelet_mask, ensemble_id=ensemble_id, initialize=initialize
         )
-        segs = [[int(l)] for l in sub_labels]
-        anoms = self.get_event_intervals(segs, 1)
+        base_columns = sub_df.columns
+        segments = sub_df.values.tolist()
+
+        if self.poolings:
+            segments, pooled_columns = self.pooling_segmentation(
+                segments, base_columns
+            )
+        else:
+            pooled_columns = base_columns
+
+        sub_df = pd.DataFrame(segments, columns=pooled_columns)
         return sub_df, anoms

@@ -48,23 +48,18 @@ class SegmentedModel:
     ensemble_id: str
 
     def predict_proba(self, esa_channel):
-        df, anoms = self.segmentator.segment_statistical(
+        df, _ = self.segmentator.segment_statistical(
             esa_channel,
             masks=[],
-            ensemble_id=self.ensemble_id,
+            ensemble_id=f"{self.ensemble_id}_test",
             train_phase=False,
         )
-        labels = np.zeros(len(df), dtype=int)
-        for s, e in anoms:
-            s = max(0, s)
-            e = min(len(df) - 1, e)
-            labels[s : e + 1] = 1
+
         df, _ = self.segmentator.segment_shapelets(
             df=df,
-            labels=labels,
             esa_channel=esa_channel,
-            mask=(0, len(esa_channel.data)),
-            ensemble_id=self.ensemble_id,
+            shapelet_mask=(0, len(esa_channel.data)),
+            ensemble_id=f"{self.ensemble_id}_test",
             masks=None,
             mode="exclude",
         )
@@ -327,17 +322,18 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                         df=stats_df,
                         labels=labels_all,
                         esa_channel=train_channel,
-                        mask=shapelet_mask,
+                        shapelet_mask=shapelet_mask,
                         ensemble_id=f"train_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}",
                         masks=[tuple(mask1), tuple(mask2), tuple(shapelet_mask)],
                         mode="exclude",
+                        initialize=True,
                     )
 
                     eval2_channel, eval2_anomalies = self.segmentator.segment_shapelets(
                         df=stats_df,
                         labels=labels_all,
                         esa_channel=train_channel,
-                        mask=shapelet_mask,
+                        shapelet_mask=shapelet_mask,
                         ensemble_id=f"eval2_{self.make_run_id([tuple(mask2), tuple(shapelet_mask)])}",
                         masks=[tuple(mask2)],
                         mode="include",
@@ -347,7 +343,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                         df=stats_df,
                         labels=labels_all,
                         esa_channel=train_channel,
-                        mask=shapelet_mask,
+                        shapelet_mask=shapelet_mask,
                         ensemble_id=f"eval1_{self.make_run_id([tuple(mask1), tuple(shapelet_mask)])}",
                         masks=[tuple(mask1)],
                         mode="include",

@@ -51,14 +51,18 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
     # ------------------------------------------------------------------
     def load_models(self) -> None:
         """Load serialized models from ``artifacts_dir``."""
-        model_base = os.path.join(self.artifacts_dir, "models")
+
+        model_base = os.path.join("experiments", self.artifacts_dir, "models")
+
         for ch_dir in glob.glob(os.path.join(model_base, "channel_*")):
+         
             base = os.path.basename(ch_dir)
             ch_id = base[len("channel_") :]
             links_file = os.path.join(ch_dir, "links.json")
             if os.path.exists(links_file):
                 with open(links_file, "r") as f:
                     self.channel_links[ch_id] = json.load(f)
+              
             for p in glob.glob(os.path.join(ch_dir, "internal_*.pkl")):
                 mid = os.path.splitext(os.path.basename(p))[0]
                 self.internal_models[mid] = joblib.load(p)
@@ -74,6 +78,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
     def channel_specific_ensemble(self, challenge_channel: ESA, channel_id: str) -> pd.DataFrame:
         """Apply all saved estimators for ``channel_id`` on ``challenge_channel``."""
         links = self.channel_links.get(channel_id, {})
+    
         if not links:
             raise RuntimeError(f"No model links found for channel {channel_id}")
 
@@ -85,6 +90,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             first_df: Optional[pd.DataFrame] = None
             for iid in internal_ids:
                 mdl = self.internal_models[iid]
+                """
                 mdl.segmentator.shapelet_miner.initialize_kernels(
                     challenge_channel,
                     mask=(0, len(challenge_channel.data)),
@@ -94,11 +100,12 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                     challenge_channel, masks=[], ensemble_id=mdl.ensemble_id, train_phase=False
                 )
                 if first_df is None:
-                    first_df = df
-                p = mdl.model.predict_proba(df)
+                    first_df = df"""
+                mdl.ensemble_id = "siummm"
+                p = mdl.predict_proba(challenge_channel)
                 if p.shape[1] == 1:
                     cls = mdl.model.classes_[0]
-                    internal_probas.append(np.full(len(df), 1.0 if cls == 1 else 0.0))
+                    internal_probas.append(np.full(100, 1.0 if cls == 1 else 0.0))
                 else:
                     internal_probas.append(p[:, 1])
 

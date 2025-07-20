@@ -178,8 +178,8 @@ cpdef list apply_transformations_to_channel_cython(object self, np.ndarray data,
     cdef int telecommand_idx
     cdef np.ndarray values
 
- 
     while index + self.segment_duration < len(data):
+
         seg_start = index
         seg_end = index + self.segment_duration
         
@@ -191,12 +191,11 @@ cpdef list apply_transformations_to_channel_cython(object self, np.ndarray data,
             if max(seg_start, <int>masks[mask_index][0]) < min(seg_end, <int>masks[mask_index][1]):
                 intersects_invalid = True
         else:
-            if not train:
+            if not train and len(masks)>0:
                 break
             
         while anomaly_index < anomaly_indices.shape[0] and seg_start > anomaly_indices[anomaly_index][1]:
             anomaly_index += 1
-
         # Check for intersection with anomaly
         intersects_anomaly = False
         if anomaly_index < anomaly_indices.shape[0]:
@@ -212,7 +211,7 @@ cpdef list apply_transformations_to_channel_cython(object self, np.ndarray data,
                 event = -1
             else:
                 event = 1 if intersects_anomaly else 0
-
+       
         else:
             # –––––––––––––––––––––––––––––––––––––––––––––––––––––––––
             # test/challenge: **tieni solo** le finestre invalid
@@ -232,7 +231,7 @@ cpdef list apply_transformations_to_channel_cython(object self, np.ndarray data,
             self.available_transformations[transformation](values)
             for transformation in self.transformations
         ])
- 
+
         if self.telecommands:
             for telecommand_idx in range(1, data.shape[1]):
                 segment.append(int(np.sum(data[seg_start:seg_end, telecommand_idx])))
@@ -244,8 +243,7 @@ cpdef list apply_transformations_to_channel_cython(object self, np.ndarray data,
             segment.extend(list(shapelet_features))
   
         results.append(segment)
-
-        if event == -1:
+        if event == -1 and len(masks)>0:
             if train:
                 index = masks[mask_index][1] + 1
             else:
