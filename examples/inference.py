@@ -13,22 +13,34 @@ def main():
     args = parser.parse_args()
 
     shapelet_miner = ShapeletMiner(
-        k_min_length=1599,
-        k_max_length=1600,
-        num_kernels=5,
-        segment_duration=1000,
-        step_duration=200,
+        k_min_length=30,
+        k_max_length=40,
+        num_kernels=10,
+        segment_duration=50,
+        step_duration=10,
         run_id=args.artifacts_dir.split("/")[-1],
         exp_dir=args.artifacts_dir,
         skip=True,
     )
 
     segmentator = EsaDatasetSegmentator2(
-        transformations=["min", "max", "mean", "std"],
-        segment_duration=1000,
-        step_duration=200,
+        transformations=[
+            "min",
+            "max",
+            "mean",
+            "std",
+            "var",
+            "stft",
+            "sc",
+            "slope",
+            "diff_var",
+        ],
+        segment_duration=50,
+        step_duration=10,
         shapelet_miner=shapelet_miner,
         telecommands=False,
+        pooling_segment_len=200,
+        pooling_segment_stride=20,
         poolings=["max", "min"],
         run_id=args.artifacts_dir.split("/")[-1],
         exp_dir=args.artifacts_dir,
