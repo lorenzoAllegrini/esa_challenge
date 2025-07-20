@@ -150,7 +150,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         # Ensure every CV split contains both classes, otherwise CV-based
         # model selection would fail with ``ValueError``.  When a degenerate
         # split is detected fall back to a constant classifier.
-        cv_ok = True
+        """cv_ok = True
         for tr_idx, te_idx in search_cv.cv.split(full_train, labels_train):
             if (
                 np.unique(labels_train[tr_idx]).size < 2
@@ -165,7 +165,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             estimator.fit(full_train, labels_train)
             seg_model = SegmentedModel(copy.deepcopy(estimator), copy.deepcopy(self.segmentator), ensemble_id)
             joblib.dump(seg_model, model_path)
-            return estimator, 0.0, {"time": 0.0, "cpu": 0.0, "mem": 0.0}
+            return estimator, 0.0, {"time": 0.0, "cpu": 0.0, "mem": 0.0}"""
 
         prev = history.get(run_id)
         current_space_keys = sorted(search_cv.search_spaces.keys())
