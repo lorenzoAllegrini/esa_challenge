@@ -111,10 +111,12 @@ class DummySegmentator:
         df,
         labels,
         esa_channel,
-        mask,
+        shapelet_mask,
         ensemble_id,
         masks=None,
         mode="exclude",
+        initialize=False,
+        **_kwargs,
     ):
         mask_bool = np.ones(len(df), dtype=bool)
         if masks:
@@ -126,7 +128,7 @@ class DummySegmentator:
                 mask_bool &= (df["start"] >= ms[0]) & (df["end"] <= ms[1])
         new_df = df[mask_bool].reset_index(drop=True)
         new_labels = np.array(labels)[mask_bool]
-        new_df = self.add_shapelet_features(new_df, esa_channel, mask, ensemble_id)
+        new_df = self.add_shapelet_features(new_df, esa_channel, shapelet_mask, ensemble_id)
         segments = [[int(l)] for l in new_labels]
         return new_df, self.get_event_intervals(segments, 1)
 

@@ -130,6 +130,7 @@ class ESA(
         n_predictions: int = 1,
         train: bool = True,
         download: bool = True,
+        challenge_parquet: Optional[str] = None,
         uniform_start_end_date: bool = False,
         drop_last: bool = True,
         use_telecommands: bool = True
@@ -141,11 +142,12 @@ class ESA(
             root (str): The root directory of the dataset.
             mission (ESAMission): The mission type of the dataset.
             channel_id (str): The channel ID to be used.
-            mode (Literal["prediction", "anomaly"]): The mode of the dataset.
+            mode (Literal["prediction", "anomaly", "challenge"]): The mode of the dataset.
             overlapping (bool): The flag that indicates whether the dataset is overlapping.
             seq_length (Optional[int]): The length of the sequence for each sample.
             train (bool): The flag that indicates whether the dataset is for training or testing.
             download (bool): The flag that indicates whether the dataset should be downloaded.
+            challenge_parquet (Optional[str]): Optional path to a parquet file used when loading challenge data.
             uniform_start_end_date (bool): The flag that indicates whether the dataset should be resampled to have uniform start and end date.
             drop_last (bool): The flag that indicates whether the last sample should be dropped.
         """
@@ -167,14 +169,16 @@ class ESA(
         self.drop_last: bool = drop_last
         self.n_predictions: int = n_predictions
         self.use_telecommands: bool = use_telecommands
+        self.challenge_parquet: Optional[str] = challenge_parquet
 
         if not channel_id in self.mission.all_channels:
             raise ValueError(f"Channel ID {channel_id} is not valid")
         print("1")
-        if download:
+        challenge_mode = self._mode == "challenge" and not self.train and self.challenge_parquet is not None
+        if download and not challenge_mode:
             self.download()
         print("2")
-        if not self._check_exists():
+        if not challenge_mode and not self._check_exists():
             raise RuntimeError(
                 "Dataset not found. You can use download=True to download it"
             )
@@ -293,8 +297,8 @@ class ESA(
         """
         source_folder = os.path.join(self.root, self.mission.inner_dirpath)
         if not self.train and self._mode == "challenge":
-            
-            return self.load_challenge_channel(channel_id)
+
+            return self.load_challenge_channel(channel_id, self.challenge_parquet)
         # Load and format parameter (channel)
         if channel_id in self.mission.parameters:
             channel_df = pd.read_pickle(
@@ -395,11 +399,13 @@ class ESA(
 
         return channel, anomalies, communication_gaps 
     
-    def load_challenge_channel(self, channel_id: str):
+    def load_challenge_channel(self, channel_id: str, parquet_file: Optional[str] = None):
 
         import pyarrow.parquet as pq
-        source_folder = os.path.join(self.root, "ESA-Mission1-challenge")
-        table = pq.read_table(os.path.join(source_folder, "test.parquet"))
+        if parquet_file is None:
+            source_folder = os.path.join(self.root, "ESA-Mission1-challenge")
+            parquet_file = os.path.join(source_folder, "test.parquet")
+        table = pq.read_table(parquet_file)
         df = table.to_pandas()
         
         # Seleziona le colonne che iniziano con "telecommand_" e ordinali per numero crescente

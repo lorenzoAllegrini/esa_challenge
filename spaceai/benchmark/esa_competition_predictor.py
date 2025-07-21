@@ -139,13 +139,19 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
     def run(
         self,
         mission: ESAMission,
+        test_parquet: Optional[str] = None,
         peak_height: float = 0.5,
         buffer_size: int = 100,
         gamma: float = 1.5,
         delta: float = 0.05,
         beta: float = 0.3,
     ) -> pd.DataFrame:
-        """Execute the inference pipeline on the challenge data."""
+        """Execute the inference pipeline on the challenge data.
+
+        Args:
+            mission: ESA mission metadata.
+            test_parquet: Optional path to a challenge parquet file.
+        """
         if not self.meta_models:
             self.load_models()
 
@@ -156,7 +162,19 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         global_df: Optional[pd.DataFrame] = None
         channel_cv: Dict[str, float] = {}
         for channel_id in mission.target_channels:
-            _, challenge_channel = self.load_channel(mission, channel_id, overlapping_train=False)
+            challenge_channel = ESA(
+                root=self.data_root,
+                mission=mission,
+                channel_id=channel_id,
+                mode="challenge",
+                overlapping=False,
+                seq_length=250,
+                train=False,
+                drop_last=False,
+                n_predictions=1,
+                challenge_parquet=test_parquet,
+                download=False,
+            )
             df_ch = self.channel_specific_ensemble(challenge_channel, channel_id)
             print(f"df_ch: {df_ch}")
             if global_df is None:
@@ -204,9 +222,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         mission: Optional[ESAMission] = None,
     ) -> None:
         """Convenience wrapper to run inference given a parquet file path."""
-        data_root = os.path.dirname(os.path.dirname(test_parquet))
         if mission is None:
             mission = ESAMissions.MISSION_1.value
-        self.data_root = data_root
-        df = self.run(mission)
+        df = self.run(mission, test_parquet=test_parquet)
         df.to_csv(output, index=False)
