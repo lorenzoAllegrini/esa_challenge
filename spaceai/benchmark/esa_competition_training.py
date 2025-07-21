@@ -9,6 +9,7 @@ from typing import (
     List,
     Optional,
     Tuple,
+    Dict,
 )
 
 import joblib
@@ -47,7 +48,7 @@ class SegmentedModel:
     segmentator: EsaDatasetSegmentator2
     ensemble_id: str
 
-    def predict_proba(self, esa_channel):
+    def predict_proba(self, esa_channel, return_df: bool = False):
         df, _ = self.segmentator.segment_statistical(
             esa_channel,
             masks=[],
@@ -63,7 +64,8 @@ class SegmentedModel:
             masks=None,
             mode="exclude",
         )
-        return self.model.predict_proba(df)
+        proba = self.model.predict_proba(df)
+        return (proba, df) if return_df else proba
 
 
 class ESACompetitionTraining(ESACompetitionBenchmark):

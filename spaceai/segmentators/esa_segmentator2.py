@@ -236,7 +236,6 @@ class EsaDatasetSegmentator2:
         train_phase: bool = False,
     ):
         """Compute only statistical features for a channel."""
-        print(esa_channel.data)
         masks = sorted(masks, key=lambda iv: iv[0])
         output_dir = os.path.join(
             self.exp_dir, self.run_id, "channel_segments", esa_channel.channel_id
@@ -365,7 +364,6 @@ class EsaDatasetSegmentator2:
                 else:
                     for pooling in self.poolings:
                         func = self.available_poolings[pooling]
-                        print(func)
                         row.append(func(window[:, j], axis=0))
             new_segments.append(row)
 
