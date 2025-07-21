@@ -84,6 +84,13 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
 
         df_out: Optional[pd.DataFrame] = None
         meta_probas = []
+
+        stats_df, _ = self.segmentator.segment_statistical(
+            challenge_channel,
+            masks=[],
+            ensemble_id=f"stats_{channel_id}_test",
+            train_phase=False,
+        )
         for meta_id, info in links.items():
             internal_ids = info.get("internal_ids", [])
             internal_probas = []
@@ -91,7 +98,16 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             for iid in internal_ids:
                 mdl = self.internal_models[iid]
                 
-                p, df_curr = mdl.predict_proba(challenge_channel, return_df=True)
+                df_curr, _ = mdl.segmentator.segment_shapelets(
+                    df=stats_df,
+                    esa_channel=challenge_channel,
+                    shapelet_mask=(0, len(challenge_channel.data)),
+                    ensemble_id=f"{mdl.ensemble_id}_test",
+                    masks=None,
+                    mode="exclude",
+                    initialize=False,
+                )
+                p = mdl.model.predict_proba(df_curr)
                 if first_df is None:
                     first_df = df_curr
                 if p.shape[1] == 1:
@@ -102,7 +118,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 else:
                     internal_probas.append(p[:, 1])
 
-            meta_df = pd.DataFrame({f"channel_{i}": internal_probas[i] for i in range(len(internal_probas))})
+            meta_df = pd.DataFrame({f"internal_model_{i}": internal_probas[i] for i in range(len(internal_probas))})
             meta_mdl = self.meta_models[meta_id]
             mp = meta_mdl.model.predict_proba(meta_df)
             if mp.shape[1] == 1:
