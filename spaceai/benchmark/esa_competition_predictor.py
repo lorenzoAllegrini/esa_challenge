@@ -90,22 +90,15 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             first_df: Optional[pd.DataFrame] = None
             for iid in internal_ids:
                 mdl = self.internal_models[iid]
-                """
-                mdl.segmentator.shapelet_miner.initialize_kernels(
-                    challenge_channel,
-                    mask=(0, len(challenge_channel.data)),
-                    ensemble_id=mdl.ensemble_id,
-                )
-                df, _ = mdl.segmentator.segment(
-                    challenge_channel, masks=[], ensemble_id=mdl.ensemble_id, train_phase=False
-                )
+                
+                p, df_curr = mdl.predict_proba(challenge_channel, return_df=True)
                 if first_df is None:
-                    first_df = df"""
-                mdl.ensemble_id = "siummm"
-                p = mdl.predict_proba(challenge_channel)
+                    first_df = df_curr
                 if p.shape[1] == 1:
                     cls = mdl.model.classes_[0]
-                    internal_probas.append(np.full(100, 1.0 if cls == 1 else 0.0))
+                    internal_probas.append(
+                        np.full(len(df_curr), 1.0 if cls == 1 else 0.0)
+                    )
                 else:
                     internal_probas.append(p[:, 1])
 
@@ -149,10 +142,13 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         for channel_id in mission.target_channels:
             _, challenge_channel = self.load_channel(mission, channel_id, overlapping_train=False)
             df_ch = self.channel_specific_ensemble(challenge_channel, channel_id)
+            print(f"df_ch: {df_ch}")
             if global_df is None:
                 global_df = df_ch
             else:
+                print("else")
                 global_df = global_df.merge(df_ch, on=["start", "end"], how="outer")
+                print(f"global_df: {global_df}")
             channel_cv[channel_id] = 1.0
 
         if global_df is None:

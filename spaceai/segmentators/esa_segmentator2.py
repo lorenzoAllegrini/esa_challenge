@@ -292,7 +292,8 @@ class EsaDatasetSegmentator2:
             df = pd.DataFrame(segments, columns=base_columns)
             df.to_parquet(pq_path, index=False)
 
-        df = df.drop(columns=df.filter(like="event").columns)
+        #df = df.drop(columns=df.filter(like="event").columns)
+      
         return df, anomalies
 
     def add_shapelet_features(
@@ -324,11 +325,11 @@ class EsaDatasetSegmentator2:
         for i in range(self.shapelet_miner.num_kernels):
             df[f"kernel_{i}_max_convolution"] = raw_features[:, 2 * i]
             df[f"kernel_{i}_min_convolution"] = raw_features[:, 2 * i + 1]
-        
+   
         return df
 
     def pooling_segmentation(
-        self, segments: List[List[float]], columns: List[str]
+        self, segments: List[List[float]], columns: List[str], test: bool = True
     ) -> Tuple[List[List[float]], List[str]]:
         """
         Applica rolling‐window pooling per ciascuna feature:
@@ -349,12 +350,13 @@ class EsaDatasetSegmentator2:
             else:
                 for pooling in self.poolings:
                     new_columns.append(f"{pooling}_{feat}")
-
+   
         new_segments = []
         for start in range(0, N - w + 1, s):
+            
             window = data[start : start + w, :]  # (w, F)
             row = []
-            if np.min(window[:, 0], axis=0) == -1:
+            if np.min(window[:, 0], axis=0) == -1 and not test:
                 continue
             for j, feat in enumerate(columns):
                 if feat in self.pooling_config:
@@ -365,8 +367,9 @@ class EsaDatasetSegmentator2:
                     for pooling in self.poolings:
                         func = self.available_poolings[pooling]
                         row.append(func(window[:, j], axis=0))
+      
             new_segments.append(row)
-
+       
         return new_segments, new_columns
 
     def get_event_intervals(self, segments: list, label: int) -> list:
@@ -389,6 +392,7 @@ class EsaDatasetSegmentator2:
         mode: str = "exclude",
         initialize=False,
         labels: Optional[np.ndarray] = None,
+        test: bool = True,
     ) -> Tuple[pd.DataFrame, List[List[int]]]:
         """Return a masked dataset enriched with shapelet features.
 
@@ -431,25 +435,24 @@ class EsaDatasetSegmentator2:
                 raise ValueError("mode must be 'exclude' or 'include'")
 
         sub_df = df[mask_bool].reset_index(drop=True)
-        if labels is not None:
-            sub_labels = labels[mask_bool]
-            segs = [[int(l)] for l in sub_labels]
-            anoms = self.get_event_intervals(segs, 1)
-        else: 
-            anoms = None
+        
         
         sub_df = self.add_shapelet_features(
-            sub_df, esa_channel, mask=shapelet_mask, ensemble_id=ensemble_id, initialize=initialize
+            sub_df, esa_channel, mask=shapelet_mask, ensemble_id=ensemble_id, initialize=initialize, 
         )
+        print(sub_df)
         base_columns = sub_df.columns
         segments = sub_df.values.tolist()
 
         if self.poolings:
             segments, pooled_columns = self.pooling_segmentation(
-                segments, base_columns
+                segments, base_columns, test
             )
         else:
             pooled_columns = base_columns
+        
+        anoms = self.get_event_intervals(segments, 1)
 
+        print(f"shapelet anomalies: {anoms}")
         sub_df = pd.DataFrame(segments, columns=pooled_columns)
         return sub_df, anoms
