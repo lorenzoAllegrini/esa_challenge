@@ -140,10 +140,13 @@ def sample_smart_masks(
         rng = np.random.default_rng()
 
     candidates = all_smart_masks(total_len, invalid_masks, mask_len)
-    if len(candidates) < n_masks:
-        raise ValueError(f"Ho trovato solo {len(candidates)} maschere possibili, ma ne servono {n_masks}")
-    # scelta casuale senza replacement
-    chosen = rng.choice(len(candidates), size=n_masks, replace=False)
+    if len(candidates) == 0:
+        raise ValueError("No candidate masks available")
+    # if there are fewer candidates than required, fall back to sampling with
+    # replacement. This allows callers to request more masks than the distinct
+    # non‑overlapping intervals available.
+    replace = len(candidates) < n_masks
+    chosen = rng.choice(len(candidates), size=n_masks, replace=replace)
     return [candidates[i] for i in chosen]
 
 def make_smart_masks(
