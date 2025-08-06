@@ -78,9 +78,21 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
     def channel_specific_ensemble(self, challenge_channel: ESA, channel_id: str) -> pd.DataFrame:
         """Apply all saved estimators for ``channel_id`` on ``challenge_channel``."""
         links = self.channel_links.get(channel_id, {})
-    
+
         if not links:
             raise RuntimeError(f"No model links found for channel {channel_id}")
+
+        # filter out models without a corresponding serialized estimator
+        valid_links = {}
+        for meta_id, info in links.items():
+            if meta_id not in self.meta_models:
+                continue
+            internal_ids = [iid for iid in info.get("internal_ids", []) if iid in self.internal_models]
+            if internal_ids:
+                valid_links[meta_id] = {"internal_ids": internal_ids}
+
+        if not valid_links:
+            raise RuntimeError(f"No serialized models available for channel {channel_id}")
 
         df_out: Optional[pd.DataFrame] = None
         meta_probas = []
@@ -91,7 +103,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             ensemble_id=f"stats_{channel_id}_test",
             train_phase=False,
         )
-        for meta_id, info in links.items():
+        for meta_id, info in valid_links.items():
             internal_ids = info.get("internal_ids", [])
             internal_probas = []
             first_df: Optional[pd.DataFrame] = None
@@ -130,9 +142,9 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             if df_out is None and first_df is not None:
                 df_out = first_df[["start", "end"]].copy()
 
-        mean_proba = np.mean(meta_probas, axis=0)
-        if df_out is None:
+        if not meta_probas or df_out is None:
             raise RuntimeError("No channel data processed")
+        mean_proba = np.mean(meta_probas, axis=0)
         df_out[channel_id] = mean_proba
         return df_out
 
