@@ -173,11 +173,11 @@ class ESA(
 
         if not channel_id in self.mission.all_channels:
             raise ValueError(f"Channel ID {channel_id} is not valid")
-        print("1")
+      
         challenge_mode = self._mode == "challenge" and not self.train and self.challenge_parquet is not None
         if download and not challenge_mode:
             self.download()
-        print("2")
+      
         if not challenge_mode and not self._check_exists():
             raise RuntimeError(
                 "Dataset not found. You can use download=True to download it"

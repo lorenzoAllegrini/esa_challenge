@@ -242,7 +242,7 @@ class EsaDatasetSegmentator2:
         )
         os.makedirs(output_dir, exist_ok=True)
 
-        pq_path = os.path.join(output_dir, f"{ensemble_id}.parquet")
+        pq_path = os.path.join(output_dir, f"f{ensemble_id}.parquet")
         if os.path.exists(pq_path):
             df = pd.read_parquet(pq_path)
             segments = df.values.tolist()
@@ -287,10 +287,9 @@ class EsaDatasetSegmentator2:
                     f"telecommand_{i}" for i in range(1, esa_channel.data.shape[1])
                 ]
 
-
             anomalies = self.get_event_intervals(segments, label=1)
             df = pd.DataFrame(segments, columns=base_columns)
-            df.to_parquet(pq_path, index=False)
+            #df.to_csv(pq_path, index=False)
 
         #df = df.drop(columns=df.filter(like="event").columns)
       
@@ -314,7 +313,11 @@ class EsaDatasetSegmentator2:
 
         windows = []
         for _, row in df.iterrows():
+            
             start, end = int(row["start"]), int(row["end"])
+            #if start < len(df)/50:
+                #print(f"start: {start}, end:{end}")
+            #print(len(esa_channel.data[start:end, 0].astype(np.float32)))
             windows.append(esa_channel.data[start:end, 0].astype(np.float32))
         X = np.stack(windows)[:, np.newaxis, :]
         raw_features = _apply_kernels2(
@@ -440,7 +443,7 @@ class EsaDatasetSegmentator2:
         sub_df = self.add_shapelet_features(
             sub_df, esa_channel, mask=shapelet_mask, ensemble_id=ensemble_id, initialize=initialize, 
         )
-        print(sub_df)
+        #print(sub_df)
         base_columns = sub_df.columns
         segments = sub_df.values.tolist()
 
@@ -453,6 +456,6 @@ class EsaDatasetSegmentator2:
         
         anoms = self.get_event_intervals(segments, 1)
 
-        print(f"shapelet anomalies: {anoms}")
+        #print(f"shapelet anomalies: {anoms}")
         sub_df = pd.DataFrame(segments, columns=pooled_columns)
         return sub_df, anoms

@@ -118,7 +118,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 else:
                     internal_probas.append(p[:, 1])
 
-            meta_df = pd.DataFrame({f"internal_model_{i}": internal_probas[i] for i in range(len(internal_probas))})
+            meta_df = pd.DataFrame({f"channel_{i}": internal_probas[i] for i in range(len(internal_probas))})
             meta_mdl = self.meta_models[meta_id]
             mp = meta_mdl.model.predict_proba(meta_df)
             if mp.shape[1] == 1:
@@ -175,14 +175,15 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 challenge_parquet=test_parquet,
                 download=False,
             )
+            #print(challenge_channel.data)
             df_ch = self.channel_specific_ensemble(challenge_channel, channel_id)
-            print(f"df_ch: {df_ch}")
+            #print(f"df_ch: {df_ch}")
             if global_df is None:
                 global_df = df_ch
             else:
-                print("else")
+                #print("else")
                 global_df = global_df.merge(df_ch, on=["start", "end"], how="outer")
-                print(f"global_df: {global_df}")
+                #print(f"global_df: {global_df}")
             channel_cv[channel_id] = 1.0
 
         if global_df is None:

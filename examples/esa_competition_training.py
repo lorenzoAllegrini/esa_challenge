@@ -29,7 +29,7 @@ def make_logistic_search_cv(pipeline, space, scorer):
         search_spaces=space,
         scoring=scorer,
         cv=TimeSeriesSplit(n_splits=3),
-        n_iter=1,
+        n_iter=100,
         n_jobs=-1,
         verbose=3,
         error_score=0.0
@@ -43,7 +43,7 @@ def make_xgb_search_cv(pipeline, space, scorer):
         cv=TimeSeriesSplit(n_splits=3),
         verbose=0,
         n_jobs=-1,
-        n_iter=1,
+        n_iter=100,
         error_score=0.0
     )
 
@@ -109,7 +109,7 @@ def main():
     # will ignore them and emit warnings during training.
     xgb_param_space = {
         "scale_pos_weight": Real(0.2, 1.0),
-        "n_estimators": Integer(1000, 1500),
+        "n_estimators": Integer(900, 1500),
         "max_depth": Integer(6, 9),
         "learning_rate": Real(0.001, 0.01),
         "min_child_weight": Integer(1, 3),
