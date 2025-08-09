@@ -331,7 +331,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                         initialize=True,
                     )
                     internal_train_channel = internal_train_channel.drop(columns=["event", "start", "end"])
-                    print(internal_train_channel)
+                    
                     eval2_channel, eval2_anomalies = self.segmentator.segment_shapelets(
                         df=stats_df,
                         labels=labels_all,
@@ -342,7 +342,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                         mode="include",
                     )
                     eval2_channel = eval2_channel.drop(columns=["event", "start", "end"])
-                    print(eval2_channel)
+           
                     eval1_channel, eval1_anomalies = self.segmentator.segment_shapelets(
                         df=stats_df,
                         labels=labels_all,
@@ -353,7 +353,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                         mode="include",
                     )
                     eval1_channel = eval1_channel.drop(columns=["event", "start", "end"])
-                    print(eval1_channel)
+      
                 internal_run_id = f"internal_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}"
                 internal_estimator, _, int_metrics = self.channel_specific_model_selection(
                     train_channel=internal_train_channel,

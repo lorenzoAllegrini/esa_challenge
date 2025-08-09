@@ -134,12 +134,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                     initialize=False,
                 )
                 df_curr.to_csv("df_curr")
-                if hasattr(mdl.model, "get_booster"):
-                    booster = mdl.model.get_booster()
-                    print(f"num rounds: {booster.num_boosted_rounds()}")
-                else:
-                    print("dio be")
-
+      
                 p = mdl.model.predict_proba(df_curr)
                 
                 if first_df is None:
