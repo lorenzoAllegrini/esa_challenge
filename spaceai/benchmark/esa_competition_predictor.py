@@ -44,11 +44,13 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         self.mission = mission
         self.artifacts_dir = artifacts_dir
         self.internal_models: Dict[str, Any] = {}
+        self.internal_models_by_channel: Dict[str, Dict[str, Any]] = {}
         for ch in mission.target_channels:
-            self.internal_models[ch] = {}
+            self.internal_models_by_channel[ch] = {}
         self.meta_models: Dict[str, Any] = {}
+        self.meta_models_by_channel: Dict[str, Dict[str, Any]] = {}
         for ch in mission.target_channels:
-            self.meta_models[ch] = {}
+            self.meta_models_by_channel[ch] = {}
         self.event_models: List[Any] = []
         self.channel_links: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
@@ -72,10 +74,14 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
               
             for p in glob.glob(os.path.join(ch_dir, "internal_*.pkl")):
                 mid = os.path.splitext(os.path.basename(p))[0]
-                self.internal_models[ch_id][mid] = joblib.load(p)
+                model = joblib.load(p)
+                self.internal_models[mid] = model
+                self.internal_models_by_channel[ch_id][mid] = model
             for p in glob.glob(os.path.join(ch_dir, "external_*.pkl")):
                 mid = os.path.splitext(os.path.basename(p))[0]
-                self.meta_models[ch_id][mid] = joblib.load(p)
+                model = joblib.load(p)
+                self.meta_models[mid] = model
+                self.meta_models_by_channel[ch_id][mid] = model
             
             #print(self.meta_models["channel_12"].keys())
         for p in glob.glob(os.path.join(model_base, "event_wise_*.pkl")):
@@ -95,11 +101,13 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         # filter out models without a corresponding serialized estimator
         valid_links = {}
         for meta_id, info in links.items():
-            if meta_id not in self.meta_models[channel_id]:
+            if meta_id not in self.meta_models_by_channel[channel_id]:
                 continue
-            #print(self.internal_models[channel_id])
-            internal_ids = [iid for iid in info.get("internal_ids", []) if iid in self.internal_models[channel_id]]
-            #print(internal_ids)
+            internal_ids = [
+                iid
+                for iid in info.get("internal_ids", [])
+                if iid in self.internal_models_by_channel[channel_id]
+            ]
             if internal_ids:
                 valid_links[meta_id] = {"internal_ids": internal_ids}
         if not valid_links:
@@ -120,9 +128,9 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             internal_ids = info.get("internal_ids", [])
             internal_probas = []
             first_df: Optional[pd.DataFrame] = None
-            for iid in internal_ids:      
-                
-                mdl = self.internal_models[channel_id][iid]
+            for iid in internal_ids:
+
+                mdl = self.internal_models_by_channel[channel_id][iid]
 
                 df_curr, _ = mdl.segmentator.segment_shapelets(
                     df=stats_df,
@@ -149,7 +157,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
 
             meta_df = pd.DataFrame({f"channel_{i}": internal_probas[i] for i in range(len(internal_probas))})
             meta_df.to_csv("meta_df.csv")
-            meta_mdl = self.meta_models[channel_id][meta_id]
+            meta_mdl = self.meta_models_by_channel[channel_id][meta_id]
             mp = meta_mdl.model.predict_proba(meta_df)
             if mp.shape[1] == 1:
                 cls = meta_mdl.model.classes_[0]

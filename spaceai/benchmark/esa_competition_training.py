@@ -185,7 +185,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 history[run_id]["cv_score"] = new_score
                 with open(json_path, "w") as f:
                     json.dump(history, f, indent=2)
-            seg_model = SegmentedModel(estimator, copy.deepcopy(self.segmentator), ensemble_id)
+            seg_model = SegmentedModel(copy.deepcopy(estimator), copy.deepcopy(self.segmentator), ensemble_id)
             joblib.dump(seg_model, model_path)
             return estimator, new_score, {"time": 0.0, "cpu": 0.0, "mem": 0.0}
 
@@ -227,7 +227,8 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             fallback_score = float(np.mean(cv_res[metric_key]))
             callback_handler.stop()
             metrics = callback_handler.collect(reset=True)
-            joblib.dump(estimator, model_path)
+            seg_model = SegmentedModel(copy.deepcopy(estimator), copy.deepcopy(self.segmentator), ensemble_id)
+            joblib.dump(seg_model, model_path)
             return estimator, fallback_score, metrics
         callback_handler.stop()
         metrics = callback_handler.collect(reset=True)
@@ -253,7 +254,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         }
         with open(json_path, "w") as f:
             json.dump(history, f, indent=2)
-        seg_model = SegmentedModel(best_estimator, copy.deepcopy(self.segmentator), ensemble_id)
+        seg_model = SegmentedModel(copy.deepcopy(best_estimator), copy.deepcopy(self.segmentator), ensemble_id)
         joblib.dump(seg_model, model_path)
         return best_estimator, best_score, metrics
 
@@ -330,8 +331,10 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                         mode="exclude",
                         initialize=True,
                     )
-                    internal_train_channel = internal_train_channel.drop(columns=["event", "start", "end"])
-                    
+                    internal_train_features = internal_train_channel.drop(
+                        columns=["event", "start", "end"], errors="ignore"
+                    )
+
                     eval2_channel, eval2_anomalies = self.segmentator.segment_shapelets(
                         df=stats_df,
                         labels=labels_all,
@@ -341,8 +344,10 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                         masks=[tuple(mask2)],
                         mode="include",
                     )
-                    eval2_channel = eval2_channel.drop(columns=["event", "start", "end"])
-           
+                    eval2_features = eval2_channel.drop(
+                        columns=["event", "start", "end"], errors="ignore"
+                    )
+
                     eval1_channel, eval1_anomalies = self.segmentator.segment_shapelets(
                         df=stats_df,
                         labels=labels_all,
@@ -352,11 +357,13 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                         masks=[tuple(mask1)],
                         mode="include",
                     )
-                    eval1_channel = eval1_channel.drop(columns=["event", "start", "end"])
-      
+                    eval1_features = eval1_channel.drop(
+                        columns=["event", "start", "end"], errors="ignore"
+                    )
+
                 internal_run_id = f"internal_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}"
                 internal_estimator, _, int_metrics = self.channel_specific_model_selection(
-                    train_channel=internal_train_channel,
+                    train_channel=internal_train_features,
                     train_anomalies=internal_train_anomalies,
                     search_cv=search_cv_factory(),
                     callbacks=callbacks,
@@ -369,7 +376,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 internal_cpu_all.append(int_metrics.get("cpu", 0.0))
                 internal_mem_all.append(int_metrics.get("mem", 0.0))
                 internal_ids.append(internal_run_id)
-                proba2 = internal_estimator.predict_proba(eval2_channel)
+                proba2 = internal_estimator.predict_proba(eval2_features)
                 if proba2.shape[1] == 1:
                     cls2 = internal_estimator.classes_[0]
                     p2 = np.full(len(proba2), 1.0 if cls2 == 1 else 0.0)
@@ -377,7 +384,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                     p2 = proba2[:, 1]
                 internal_eval2_probas.append(p2)
 
-                proba1 = internal_estimator.predict_proba(eval1_channel)
+                proba1 = internal_estimator.predict_proba(eval1_features)
                 if proba1.shape[1] == 1:
                     cls1 = internal_estimator.classes_[0]
                     p1 = np.full(len(proba1), 1.0 if cls1 == 1 else 0.0)
