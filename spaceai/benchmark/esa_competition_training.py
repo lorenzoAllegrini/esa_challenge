@@ -166,7 +166,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
 
         prev = history.get(run_id)
         current_space_keys = sorted(search_cv.search_spaces.keys())
-        if prev is not None and desired_n is not None and prev.get("n_iter", 0) >= desired_n:
+        if prev is not None and desired_n is not None and prev.get("n_iter", 0) >= desired_n and False:
             best_params = prev["best_params"]
             estimator = clone(search_cv.estimator).set_params(**best_params)
             estimator.fit(full_train, labels_train)
@@ -330,7 +330,8 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                         mode="exclude",
                         initialize=True,
                     )
-
+                    internal_train_channel = internal_train_channel.drop(columns=["event", "start", "end"])
+                    print(internal_train_channel)
                     eval2_channel, eval2_anomalies = self.segmentator.segment_shapelets(
                         df=stats_df,
                         labels=labels_all,
@@ -340,7 +341,8 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                         masks=[tuple(mask2)],
                         mode="include",
                     )
-
+                    eval2_channel = eval2_channel.drop(columns=["event", "start", "end"])
+                    print(eval2_channel)
                     eval1_channel, eval1_anomalies = self.segmentator.segment_shapelets(
                         df=stats_df,
                         labels=labels_all,
@@ -350,6 +352,8 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                         masks=[tuple(mask1)],
                         mode="include",
                     )
+                    eval1_channel = eval1_channel.drop(columns=["event", "start", "end"])
+                    print(eval1_channel)
                 internal_run_id = f"internal_{self.make_run_id([tuple(mask1), tuple(mask2), tuple(shapelet_mask)])}"
                 internal_estimator, _, int_metrics = self.channel_specific_model_selection(
                     train_channel=internal_train_channel,
@@ -497,7 +501,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         perc_eval2: float = 0.2,
         perc_eval1: float = 0.2,
         perc_shapelet: float = 0.1,
-        external_estimators: int = 5,
+        external_estimators: int = 3,
         internal_estimators: int = 10,
         final_estimators: int = 5,
         flat: bool = True,
@@ -547,8 +551,9 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 final_train = None
                 channel_cv = {}
                 for channel_id in mission.target_channels:
-                    #if int(channel_id.split("_")[1]) < 41 or int(channel_id.split("_")[1]) > 47:
-                        #continue
+                    if int(channel_id.split("_")[1]) < 11:
+                        continue
+                     
                     train_channel, _ = self.load_channel(mission, channel_id, overlapping_train=True)
                    
                     final_train, channel_score = self.channel_specific_ensemble(

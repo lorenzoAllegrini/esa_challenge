@@ -43,7 +43,7 @@ def make_xgb_search_cv(pipeline, space, scorer):
         cv=TimeSeriesSplit(n_splits=3),
         verbose=0,
         n_jobs=-1,
-        n_iter=100,
+        n_iter=50,
         error_score=0.0
     )
 
@@ -173,6 +173,7 @@ def main():
         search_cv_factory2=search_cv_factory2,
         search_cv_factory3=search_cv_factory2,
         skip_channel_training=False,
+        
     )
 
 

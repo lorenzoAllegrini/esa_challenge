@@ -13,7 +13,7 @@ from spaceai.data import ESA, ESAMission, ESAMissions
 from spaceai.segmentators.esa_segmentator2 import EsaDatasetSegmentator2
 
 from .esa_competition import ESACompetitionBenchmark
-
+from xgboost import Booster
 
 class ESACompetitionPredictor(ESACompetitionBenchmark):
     """Benchmark variant used only for inference.
@@ -30,6 +30,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         data_root: str = "datasets",
         id_offset: int = 14728321,
         seed: int = 42,
+        mission = ESAMissions.MISSION_1.value
     ) -> None:
         run_id = os.path.basename(os.path.normpath(artifacts_dir))
         super().__init__(
@@ -40,9 +41,14 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             id_offset=id_offset,
             seed=seed,
         )
+        self.mission = mission
         self.artifacts_dir = artifacts_dir
         self.internal_models: Dict[str, Any] = {}
+        for ch in mission.target_channels:
+            self.internal_models[ch] = {}
         self.meta_models: Dict[str, Any] = {}
+        for ch in mission.target_channels:
+            self.meta_models[ch] = {}
         self.event_models: List[Any] = []
         self.channel_links: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
@@ -55,9 +61,10 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         model_base = os.path.join("experiments", self.artifacts_dir, "models")
 
         for ch_dir in glob.glob(os.path.join(model_base, "channel_*")):
-         
+      
             base = os.path.basename(ch_dir)
             ch_id = base[len("channel_") :]
+        
             links_file = os.path.join(ch_dir, "links.json")
             if os.path.exists(links_file):
                 with open(links_file, "r") as f:
@@ -65,10 +72,12 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
               
             for p in glob.glob(os.path.join(ch_dir, "internal_*.pkl")):
                 mid = os.path.splitext(os.path.basename(p))[0]
-                self.internal_models[mid] = joblib.load(p)
+                self.internal_models[ch_id][mid] = joblib.load(p)
             for p in glob.glob(os.path.join(ch_dir, "external_*.pkl")):
                 mid = os.path.splitext(os.path.basename(p))[0]
-                self.meta_models[mid] = joblib.load(p)
+                self.meta_models[ch_id][mid] = joblib.load(p)
+            
+            #print(self.meta_models["channel_12"].keys())
         for p in glob.glob(os.path.join(model_base, "event_wise_*.pkl")):
             self.event_models.append(joblib.load(p))
 
@@ -76,21 +85,23 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
     #  Inference helpers
     # ------------------------------------------------------------------
     def channel_specific_ensemble(self, challenge_channel: ESA, channel_id: str) -> pd.DataFrame:
+        print(f"channel_id: {channel_id}")
         """Apply all saved estimators for ``channel_id`` on ``challenge_channel``."""
         links = self.channel_links.get(channel_id, {})
-
+       
         if not links:
             raise RuntimeError(f"No model links found for channel {channel_id}")
 
         # filter out models without a corresponding serialized estimator
         valid_links = {}
         for meta_id, info in links.items():
-            if meta_id not in self.meta_models:
+            if meta_id not in self.meta_models[channel_id]:
                 continue
-            internal_ids = [iid for iid in info.get("internal_ids", []) if iid in self.internal_models]
+            #print(self.internal_models[channel_id])
+            internal_ids = [iid for iid in info.get("internal_ids", []) if iid in self.internal_models[channel_id]]
+            #print(internal_ids)
             if internal_ids:
                 valid_links[meta_id] = {"internal_ids": internal_ids}
-
         if not valid_links:
             raise RuntimeError(f"No serialized models available for channel {channel_id}")
 
@@ -103,13 +114,16 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             ensemble_id=f"stats_{channel_id}_test",
             train_phase=False,
         )
+        #print(valid_links.items())
         for meta_id, info in valid_links.items():
+            print(f"meta_id: {meta_id}")
             internal_ids = info.get("internal_ids", [])
             internal_probas = []
             first_df: Optional[pd.DataFrame] = None
-            for iid in internal_ids:
-                mdl = self.internal_models[iid]
+            for iid in internal_ids:      
                 
+                mdl = self.internal_models[channel_id][iid]
+
                 df_curr, _ = mdl.segmentator.segment_shapelets(
                     df=stats_df,
                     esa_channel=challenge_channel,
@@ -119,7 +133,15 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                     mode="exclude",
                     initialize=False,
                 )
+                df_curr.to_csv("df_curr")
+                if hasattr(mdl.model, "get_booster"):
+                    booster = mdl.model.get_booster()
+                    print(f"num rounds: {booster.num_boosted_rounds()}")
+                else:
+                    print("dio be")
+
                 p = mdl.model.predict_proba(df_curr)
+                
                 if first_df is None:
                     first_df = df_curr
                 if p.shape[1] == 1:
@@ -131,7 +153,8 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                     internal_probas.append(p[:, 1])
 
             meta_df = pd.DataFrame({f"channel_{i}": internal_probas[i] for i in range(len(internal_probas))})
-            meta_mdl = self.meta_models[meta_id]
+            meta_df.to_csv("meta_df.csv")
+            meta_mdl = self.meta_models[channel_id][meta_id]
             mp = meta_mdl.model.predict_proba(meta_df)
             if mp.shape[1] == 1:
                 cls = meta_mdl.model.classes_[0]
@@ -174,6 +197,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         global_df: Optional[pd.DataFrame] = None
         channel_cv: Dict[str, float] = {}
         for channel_id in mission.target_channels:
+     
             challenge_channel = ESA(
                 root=self.data_root,
                 mission=mission,
@@ -189,6 +213,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             )
             #print(challenge_channel.data)
             df_ch = self.channel_specific_ensemble(challenge_channel, channel_id)
+            print(df_ch)
             #print(f"df_ch: {df_ch}")
             if global_df is None:
                 global_df = df_ch
@@ -197,15 +222,20 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 global_df = global_df.merge(df_ch, on=["start", "end"], how="outer")
                 #print(f"global_df: {global_df}")
             channel_cv[channel_id] = 1.0
+            print(global_df)
+            global_df.to_csv("esa_training.csv")
 
         if global_df is None:
             raise RuntimeError("No channels processed")
 
+
         global_df = self.add_group_activation(global_df, groups, channel_cv, gamma=gamma, delta=delta, beta=beta)
+        global_df.to_csv("esa_training")
         X = global_df[[c for c in global_df.columns if c.startswith("group_")]]
         fold_probas = []
         for mdl in self.event_models:
             p = mdl.predict_proba(X)
+            
             if p.shape[1] == 1:
                 single = mdl.classes_[0]
                 p = np.full(len(X), 1.0 if single == 1 else 0.0)
