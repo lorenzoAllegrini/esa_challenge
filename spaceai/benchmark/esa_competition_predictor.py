@@ -13,7 +13,6 @@ from spaceai.data import ESA, ESAMission, ESAMissions
 from spaceai.segmentators.esa_segmentator2 import EsaDatasetSegmentator2
 
 from .esa_competition import ESACompetitionBenchmark
-from xgboost import Booster
 
 class ESACompetitionPredictor(ESACompetitionBenchmark):
     """Benchmark variant used only for inference.
@@ -71,10 +70,24 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             if os.path.exists(links_file):
                 with open(links_file, "r") as f:
                     self.channel_links[ch_id] = json.load(f)
-              
+
             for p in glob.glob(os.path.join(ch_dir, "internal_*.pkl")):
                 mid = os.path.splitext(os.path.basename(p))[0]
                 model = joblib.load(p)
+                estimator = getattr(model, "model", model)
+                feature_names: List[str] = []
+                if hasattr(estimator, "feature_names_in_"):
+                    feature_names = list(estimator.feature_names_in_)
+                else:
+                    booster = getattr(estimator, "get_booster", None)
+                    if booster is not None:
+                        try:
+                            feature_names = booster().feature_names or []
+                        except Exception:  # pragma: no cover - safeguard
+                            feature_names = []
+                if any(f in {"event", "start", "end"} for f in feature_names):
+                    # skip legacy models expecting removed features
+                    continue
                 self.internal_models[mid] = model
                 self.internal_models_by_channel[ch_id][mid] = model
             for p in glob.glob(os.path.join(ch_dir, "external_*.pkl")):
@@ -103,11 +116,15 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         for meta_id, info in links.items():
             if meta_id not in self.meta_models_by_channel[channel_id]:
                 continue
+            internal_ids_full = info.get("internal_ids", [])
             internal_ids = [
                 iid
-                for iid in info.get("internal_ids", [])
+                for iid in internal_ids_full
                 if iid in self.internal_models_by_channel[channel_id]
             ]
+            # skip meta models relying on missing internal estimators
+            if len(internal_ids) != len(internal_ids_full):
+                continue
             if internal_ids:
                 valid_links[meta_id] = {"internal_ids": internal_ids}
         if not valid_links:
@@ -128,9 +145,24 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             internal_ids = info.get("internal_ids", [])
             internal_probas = []
             first_df: Optional[pd.DataFrame] = None
+            skip_meta = False
             for idx, iid in enumerate(internal_ids):
                 print(idx)
                 mdl = self.internal_models_by_channel[channel_id][iid]
+                estimator = getattr(mdl, "model", mdl)
+                feature_names: List[str] = []
+                if hasattr(estimator, "feature_names_in_"):
+                    feature_names = list(estimator.feature_names_in_)
+                else:
+                    booster = getattr(estimator, "get_booster", None)
+                    if booster is not None:
+                        try:
+                            feature_names = booster().feature_names or []
+                        except Exception:  # pragma: no cover
+                            feature_names = []
+                if any(f in {"event", "start", "end"} for f in feature_names):
+                    skip_meta = True
+                    break
 
                 df_curr, _ = mdl.segmentator.segment_shapelets(
                     df=stats_df,
@@ -157,7 +189,8 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                     )
                 else:
                     internal_probas.append(p[:, 1])
-
+            if skip_meta or not internal_probas:
+                continue
             meta_df = pd.DataFrame({f"channel_{i}": internal_probas[i] for i in range(len(internal_probas))})
             meta_df.to_csv("meta_df.csv")
             meta_mdl = self.meta_models_by_channel[channel_id][meta_id]
