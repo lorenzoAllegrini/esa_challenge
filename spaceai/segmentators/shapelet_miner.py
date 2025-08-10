@@ -92,6 +92,7 @@ class ShapeletMiner:
 
         # 2) Se la entry per questo ensemble_id esiste già, la carichiamo e usciamo
         if ensemble_id in all_payload:
+          
             entry = all_payload[ensemble_id]
             self.kernels = [np.array(s, dtype=np.float32) for s in entry["shapelets"]]
             return

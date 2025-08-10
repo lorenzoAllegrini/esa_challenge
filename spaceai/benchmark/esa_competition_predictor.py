@@ -128,8 +128,8 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             internal_ids = info.get("internal_ids", [])
             internal_probas = []
             first_df: Optional[pd.DataFrame] = None
-            for iid in internal_ids:
-
+            for idx, iid in enumerate(internal_ids):
+                print(idx)
                 mdl = self.internal_models_by_channel[channel_id][iid]
 
                 df_curr, _ = mdl.segmentator.segment_shapelets(
@@ -141,12 +141,15 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                     mode="exclude",
                     initialize=False,
                 )
-                df_curr.to_csv("df_curr")
+                if first_df is None:
+                    first_df = df_curr
+
+                df_curr = df_curr.drop(
+                    columns=["event", "start", "end"], errors="ignore"
+                )
       
                 p = mdl.model.predict_proba(df_curr)
                 
-                if first_df is None:
-                    first_df = df_curr
                 if p.shape[1] == 1:
                     cls = mdl.model.classes_[0]
                     internal_probas.append(
@@ -200,7 +203,8 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         global_df: Optional[pd.DataFrame] = None
         channel_cv: Dict[str, float] = {}
         for channel_id in mission.target_channels:
-     
+            if int(channel_id.split("_")[1]) < 13:
+                continue
             challenge_channel = ESA(
                 root=self.data_root,
                 mission=mission,

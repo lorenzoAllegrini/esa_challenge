@@ -321,6 +321,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 tqdm(shapelet_masks, desc=f"  Internals for ext={ext_idx}", leave=False)
             ):
                 if self.segmentator is not None:
+                
                     internal_train_channel, internal_train_anomalies = self.segmentator.segment_shapelets(
                         df=stats_df,
                         labels=labels_all,
@@ -334,6 +335,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                     internal_train_features = internal_train_channel.drop(
                         columns=["event", "start", "end"], errors="ignore"
                     )
+                   
 
                     eval2_channel, eval2_anomalies = self.segmentator.segment_shapelets(
                         df=stats_df,
@@ -558,7 +560,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 final_train = None
                 channel_cv = {}
                 for channel_id in mission.target_channels:
-                    if int(channel_id.split("_")[1]) < 11:
+                    if int(channel_id.split("_")[1]) < 18:
                         continue
                      
                     train_channel, _ = self.load_channel(mission, channel_id, overlapping_train=True)
