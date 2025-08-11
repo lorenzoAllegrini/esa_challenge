@@ -5,6 +5,15 @@ from spaceai.segmentators.esa_segmentator2 import EsaDatasetSegmentator2
 from spaceai.segmentators.shapelet_miner import ShapeletMiner
 
 
+def kernel_column_selector(X):
+    return [
+        c
+        for c in X.columns
+        if (c.startswith("max_kernel") and c.endswith("max_convolution"))
+        or (c.startswith("min_kernel") and c.endswith("min_convolution"))
+    ]
+
+
 def main():
     parser = argparse.ArgumentParser(description="ESA competition inference")
     parser.add_argument("--artifacts-dir", required=True)
