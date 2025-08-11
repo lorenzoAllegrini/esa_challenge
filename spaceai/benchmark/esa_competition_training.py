@@ -511,7 +511,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         perc_eval1: float = 0.2,
         perc_shapelet: float = 0.1,
         external_estimators: int = 3,
-        internal_estimators: int = 10,
+        internal_estimators: int = 5,
         final_estimators: int = 5,
         flat: bool = True,
         skip_channel_training: bool = False,
@@ -560,7 +560,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 final_train = None
                 channel_cv = {}
                 for channel_id in mission.target_channels:
-                    if int(channel_id.split("_")[1]) < 18:
+                    if int(channel_id.split("_")[1]) < 41:
                         continue
                      
                     train_channel, _ = self.load_channel(mission, channel_id, overlapping_train=True)

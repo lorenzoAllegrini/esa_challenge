@@ -236,7 +236,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         global_df: Optional[pd.DataFrame] = None
         channel_cv: Dict[str, float] = {}
         for channel_id in mission.target_channels:
-            if int(channel_id.split("_")[1]) < 13:
+            if int(channel_id.split("_")[1]) < 41:
                 continue
             challenge_channel = ESA(
                 root=self.data_root,

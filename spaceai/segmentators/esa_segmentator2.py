@@ -242,7 +242,7 @@ class EsaDatasetSegmentator2:
         )
         os.makedirs(output_dir, exist_ok=True)
 
-        pq_path = os.path.join(output_dir, f"f{ensemble_id}.parquet")
+        pq_path = os.path.join(output_dir, f"{ensemble_id}.parquet")
         if os.path.exists(pq_path):
             df = pd.read_parquet(pq_path)
             segments = df.values.tolist()
@@ -289,7 +289,7 @@ class EsaDatasetSegmentator2:
 
             anomalies = self.get_event_intervals(segments, label=1)
             df = pd.DataFrame(segments, columns=base_columns)
-            #df.to_csv(pq_path, index=False)
+            #df.to_parquet(pq_path, index=False)
 
         #df = df.drop(columns=df.filter(like="event").columns)
       

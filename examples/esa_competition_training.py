@@ -22,6 +22,8 @@ from spaceai.data import ESAMissions
 from spaceai.segmentators.esa_segmentator2 import EsaDatasetSegmentator2
 from spaceai.segmentators.shapelet_miner import ShapeletMiner
 from spaceai.utils.callbacks import SystemMonitorCallback
+from sklearn.compose import ColumnTransformer, make_column_selector
+from sklearn.pipeline import Pipeline
 
 def make_logistic_search_cv(pipeline, space, scorer):
     return BayesSearchCV(
@@ -29,9 +31,9 @@ def make_logistic_search_cv(pipeline, space, scorer):
         search_spaces=space,
         scoring=scorer,
         cv=TimeSeriesSplit(n_splits=3),
-        n_iter=100,
+        n_iter=50,
         n_jobs=-1,
-        verbose=3,
+        verbose=0,
         error_score=0.0
     )
 
@@ -107,19 +109,37 @@ def main():
     # Parameters are passed directly to ``XGBClassifier`` so they should not
     # include any pipeline prefix such as ``classifier__``. Otherwise, XGBoost
     # will ignore them and emit warnings during training.
+    selected_features = ["max_std", "min_slope", "max_slope", "max_var", "max_diff_var", "max_stft", "max_sc"]
+    feature_selector = ColumnTransformer(
+        transformers=[
+            ("manual", "passthrough", selected_features),
+            ("kernels", "passthrough", 
+                lambda X: [c for c in X.columns 
+                           if (c.startswith("max_kernel") and c.endswith("max_convolution"))
+                           or (c.startswith("min_kernel") and c.endswith("min_convolution"))]
+            )
+        ],
+        remainder="drop"
+    )
+    pipeline = Pipeline([
+        ("selector", feature_selector),
+        ("classifier", XGBClassifier(base_score=0.5))
+    ])
+
+    # --- Section 5: Hyperparameter Search for XGBoost ---
+    
     xgb_param_space = {
-        "scale_pos_weight": Real(0.2, 1.0),
-        "n_estimators": Integer(900, 1500),
-        "max_depth": Integer(6, 9),
-        "learning_rate": Real(0.001, 0.01),
-        "min_child_weight": Integer(1, 3),
-        "colsample_bytree": Real(0.7, 1.0),
+        "classifier__scale_pos_weight": Real(0.2, 1.0),
+        "classifier__n_estimators": Integer(1000, 1500),
+        "classifier__max_depth": Integer(6, 9),
+        "classifier__learning_rate": Real(0.001, 0.01),
+        "classifier__min_child_weight": Integer(1, 3),
     }
     xgb_scorer = make_scorer(partial(esa_scorer, benchmark=benchmark), greater_is_better=True)
     
     search_cv_factory = partial(
         make_xgb_search_cv,
-        pipeline=XGBClassifier(base_score=0.5),
+        pipeline=pipeline,
         space=xgb_param_space,
         scorer=xgb_scorer)
         
