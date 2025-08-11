@@ -25,6 +25,15 @@ from spaceai.utils.callbacks import SystemMonitorCallback
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.pipeline import Pipeline
 
+
+def kernel_column_selector(X):
+    return [
+        c
+        for c in X.columns
+        if (c.startswith("max_kernel") and c.endswith("max_convolution"))
+        or (c.startswith("min_kernel") and c.endswith("min_convolution"))
+    ]
+
 def make_logistic_search_cv(pipeline, space, scorer):
     return BayesSearchCV(
         estimator=pipeline,
@@ -109,17 +118,21 @@ def main():
     # Parameters are passed directly to ``XGBClassifier`` so they should not
     # include any pipeline prefix such as ``classifier__``. Otherwise, XGBoost
     # will ignore them and emit warnings during training.
-    selected_features = ["max_std", "min_slope", "max_slope", "max_var", "max_diff_var", "max_stft", "max_sc"]
+    selected_features = [
+        "max_std",
+        "min_slope",
+        "max_slope",
+        "max_var",
+        "max_diff_var",
+        "max_stft",
+        "max_sc",
+    ]
     feature_selector = ColumnTransformer(
         transformers=[
             ("manual", "passthrough", selected_features),
-            ("kernels", "passthrough", 
-                lambda X: [c for c in X.columns 
-                           if (c.startswith("max_kernel") and c.endswith("max_convolution"))
-                           or (c.startswith("min_kernel") and c.endswith("min_convolution"))]
-            )
+            ("kernels", "passthrough", kernel_column_selector),
         ],
-        remainder="drop"
+        remainder="drop",
     )
     pipeline = Pipeline([
         ("selector", feature_selector),
