@@ -12,7 +12,7 @@ import itertools
 import random
 from libc.math cimport sqrt
 
-from scipy.signal import stft
+from scipy.signal import stft, fftconvolve
 
 cpdef stft_spectral_std(cnp.ndarray[double, ndim=1] values, int nperseg=10, double epsilon=1e-6):
     """
@@ -253,6 +253,31 @@ cpdef list apply_transformations_to_channel_cython(object self, np.ndarray data,
     return results
 
 
+cpdef tuple _apply_kernel_univariate_fft(np.ndarray[np.float32_t, ndim=1] X,
+                                        np.ndarray[np.float32_t, ndim=1] weights,
+                                        int length, float bias, int dilation, int padding):
+    cdef np.ndarray[np.float32_t, ndim=1] kernel = weights
+    cdef int L = length
+    if dilation > 1:
+        L = length + (length - 1) * (dilation - 1)
+        kernel = np.zeros(L, dtype=np.float32)
+        kernel[::dilation] = weights
+    if padding > 0:
+        X = np.pad(X, (padding, padding), mode="constant").astype(np.float32)
+    cdef np.ndarray[np.float32_t, ndim=1] conv = fftconvolve(X, kernel[::-1], mode="valid").astype(np.float32)
+    cdef np.ndarray[np.float32_t, ndim=1] ones = np.ones(L, dtype=np.float32)
+    cdef np.ndarray[np.float32_t, ndim=1] sum_x = fftconvolve(X, ones[::-1], mode="valid").astype(np.float32)
+    cdef np.ndarray[np.float32_t, ndim=1] sum_x2 = fftconvolve(X * X, ones[::-1], mode="valid").astype(np.float32)
+    cdef np.ndarray[np.float32_t, ndim=1] mean = sum_x / L
+    cdef np.ndarray[np.float32_t, ndim=1] var = sum_x2 / L - mean * mean
+    var = np.maximum(var, 1e-8).astype(np.float32)
+    cdef np.ndarray[np.float32_t, ndim=1] std = np.sqrt(var).astype(np.float32)
+    cdef float wsum = np.sum(kernel)
+    cdef np.ndarray[np.float32_t, ndim=1] norm_conv = (conv - mean * wsum) / std + bias
+    cdef float _max = np.max(norm_conv)
+    cdef float _min = np.min(norm_conv)
+    return np.float32(_max) / length, np.float32(_min) / length
+
 
 cpdef tuple _apply_kernel_univariate2(np.ndarray[np.float32_t, ndim=1] X,
                                       np.ndarray[np.float32_t, ndim=1] weights,
@@ -267,6 +292,8 @@ cpdef tuple _apply_kernel_univariate2(np.ndarray[np.float32_t, ndim=1] X,
     Dove window_norm è la finestra normalizzata (media 0, std 1).
     La funzione ritorna il massimo _sum, diviso per il parametro 'length'.
     """
+    if length > 50:
+        return _apply_kernel_univariate_fft(X, weights, length, bias, dilation, padding)
     cdef int n_timepoints = X.shape[0]
     cdef int end = (n_timepoints + padding) - ((length - 1) * dilation)
     cdef float _max = -3.4e38  # Valore iniziale molto basso
