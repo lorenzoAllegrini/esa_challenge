@@ -35,6 +35,12 @@ python inference.py --artifacts-dir experiments/my_run --test-parquet /path/to/t
 ```
 The resulting `submission.csv` follows the format required by the competition.
 
+### External masks
+During training multiple external masking strategies may be applied. Each meta-model and event-wise model is tagged with a
+`mask_id` identifying the mask used during its creation. At inference time the predictor groups meta-models by `mask_id`,
+averages their probabilities and creates one channel column per mask (e.g. `channel_41_ab12cd34`). Event-wise models stored as
+`event_wise_<mask_id>.pkl` are matched with their corresponding columns to produce the final anomaly probabilities.
+
 ## Repository Structure
 - `esa_competition_training.py` – entry point for training the hierarchical ensemble.
 - `inference.py` – script used to run inference and produce the final submission.
