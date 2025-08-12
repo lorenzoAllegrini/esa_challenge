@@ -273,12 +273,13 @@ cpdef tuple _apply_kernel_univariate2(np.ndarray[np.float32_t, ndim=1] X,
     cdef float _min = 3.4e38  # Valore iniziale molto basso
     cdef int i, j, idx
     cdef float _sum, m, std, dot_val, diff
+    cdef int stride = max(1, int(length * 0.02))
 
     # Allocazione delle finestre
     cdef np.ndarray[np.float32_t, ndim=1] window = np.empty(length, dtype=np.float32)
     cdef np.ndarray[np.float32_t, ndim=1] window_norm = np.empty(length, dtype=np.float32)
 
-    for i in range(-padding, end):
+    for i in range(-padding, end, stride):
         _sum = bias
         idx = i
         # Estrazione della finestra con dilatazione
@@ -355,8 +356,9 @@ cpdef tuple _apply_kernel_multivariate(np.ndarray[np.float32_t, ndim=2] X,
     cdef int end = (n_timepoints + padding) - ((length - 1) * dilation)
     cdef int i, j, k, index, idx_anom
     cdef double _sum
+    cdef int stride = max(1, int(length * 0.02))
 
-    for i in range(-padding, end):
+    for i in range(-padding, end, stride):
         _sum = bias
         index = i
         for j in range(length):
