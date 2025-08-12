@@ -247,6 +247,7 @@ def test_full_workflow(tmp_path):
     predictor.load_models()
     assert "external_0" in predictor.meta_models
     assert "internal_0" in predictor.internal_models
+    assert "0" in predictor.event_models_by_mask
 
 
 def test_training_run(tmp_path):

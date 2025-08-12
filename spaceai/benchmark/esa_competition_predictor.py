@@ -3,6 +3,7 @@ from __future__ import annotations
 import glob
 import json
 import os
+from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
 import joblib
@@ -51,6 +52,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         for ch in mission.target_channels:
             self.meta_models_by_channel[ch] = {}
         self.event_models: List[Any] = []
+        self.event_models_by_mask: Dict[str, List[Any]] = {}
         self.channel_links: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
     # ------------------------------------------------------------------
@@ -97,8 +99,12 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 self.meta_models_by_channel[ch_id][mid] = model
             
             #print(self.meta_models["channel_12"].keys())
+        self.event_models_by_mask = defaultdict(list)
         for p in glob.glob(os.path.join(model_base, "event_wise_*.pkl")):
-            self.event_models.append(joblib.load(p))
+            mask_id = os.path.splitext(os.path.basename(p))[0].split("event_wise_")[1]
+            model = joblib.load(p)
+            self.event_models.append(model)
+            self.event_models_by_mask[mask_id].append(model)
 
     # ------------------------------------------------------------------
     #  Inference helpers
@@ -126,12 +132,17 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             if len(internal_ids) != len(internal_ids_full):
                 continue
             if internal_ids:
-                valid_links[meta_id] = {"internal_ids": internal_ids}
+                valid_links[meta_id] = {
+                    "internal_ids": internal_ids,
+                    "mask_id": info.get("mask_id", "default"),
+                }
         if not valid_links:
-            raise RuntimeError(f"No serialized models available for channel {channel_id}")
+            raise RuntimeError(
+                f"No serialized models available for channel {channel_id}"
+            )
 
         df_out: Optional[pd.DataFrame] = None
-        meta_probas = []
+        mask_probas: Dict[str, List[np.ndarray]] = defaultdict(list)
 
         stats_df, _ = self.segmentator.segment_statistical(
             challenge_channel,
@@ -143,6 +154,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         for meta_id, info in valid_links.items():
             print(f"meta_id: {meta_id}")
             internal_ids = info.get("internal_ids", [])
+            mask_id = info.get("mask_id", "default")
             internal_probas = []
             first_df: Optional[pd.DataFrame] = None
             skip_meta = False
@@ -191,8 +203,9 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                     internal_probas.append(p[:, 1])
             if skip_meta or not internal_probas:
                 continue
-            meta_df = pd.DataFrame({f"channel_{i}": internal_probas[i] for i in range(len(internal_probas))})
-            meta_df.to_csv("meta_df.csv")
+            meta_df = pd.DataFrame(
+                {f"channel_{i}": internal_probas[i] for i in range(len(internal_probas))}
+            )
             meta_mdl = self.meta_models_by_channel[channel_id][meta_id]
             mp = meta_mdl.model.predict_proba(meta_df)
             if mp.shape[1] == 1:
@@ -200,14 +213,15 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 mp = np.full(len(meta_df), 1.0 if cls == 1 else 0.0)
             else:
                 mp = mp[:, 1]
-            meta_probas.append(mp)
+            mask_probas[mask_id].append(mp)
             if df_out is None and first_df is not None:
                 df_out = first_df[["start", "end"]].copy()
 
-        if not meta_probas or df_out is None:
+        if not mask_probas or df_out is None:
             raise RuntimeError("No channel data processed")
-        mean_proba = np.mean(meta_probas, axis=0)
-        df_out[channel_id] = mean_proba
+        for mask_id, probas in mask_probas.items():
+            mean_proba = np.mean(probas, axis=0)
+            df_out[f"{channel_id}_{mask_id}"] = mean_proba
         return df_out
 
     def run(
@@ -233,7 +247,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         meta = pd.read_csv(os.path.join(source_folder, "channels.csv")).assign(Channel=lambda d: d.Channel.str.strip())
         groups = meta[meta["Channel"].isin(mission.target_channels)].groupby("Group")["Channel"].apply(list).to_dict()
 
-        global_df: Optional[pd.DataFrame] = None
+        mask_dfs: Dict[str, pd.DataFrame] = {}
         channel_cv: Dict[str, float] = {}
         for channel_id in mission.target_channels:
             if int(channel_id.split("_")[1]) < 41:
@@ -251,41 +265,38 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 challenge_parquet=test_parquet,
                 download=False,
             )
-            #print(challenge_channel.data)
             df_ch = self.channel_specific_ensemble(challenge_channel, channel_id)
-            print(df_ch)
-            #print(f"df_ch: {df_ch}")
-            if global_df is None:
-                global_df = df_ch
-            else:
-                #print("else")
-                global_df = global_df.merge(df_ch, on=["start", "end"], how="outer")
-                #print(f"global_df: {global_df}")
+            for col in [c for c in df_ch.columns if c not in {"start", "end"}]:
+                base_ch, mask_id = col.rsplit("_", 1)
+                if mask_id not in mask_dfs:
+                    mask_dfs[mask_id] = df_ch[["start", "end"]].copy()
+                mask_dfs[mask_id][col] = df_ch[col]
             channel_cv[channel_id] = 1.0
-            print(global_df)
-            global_df.to_csv("esa_training.csv")
 
-        if global_df is None:
+        if not mask_dfs:
             raise RuntimeError("No channels processed")
 
-
-        global_df = self.add_group_activation(global_df, groups, channel_cv, gamma=gamma, delta=delta, beta=beta)
-        global_df.to_csv("esa_training")
-        X = global_df[[c for c in global_df.columns if c.startswith("group_")]]
         fold_probas = []
-        for mdl in self.event_models:
-            p = mdl.predict_proba(X)
-            
-            if p.shape[1] == 1:
-                single = mdl.classes_[0]
-                p = np.full(len(X), 1.0 if single == 1 else 0.0)
-            else:
-                p = p[:, 1]
-            fold_probas.append(p)
+        challenge_df: Optional[pd.DataFrame] = None
+        for mask_id, df_mask in mask_dfs.items():
+            rename_map = {c: c.rsplit("_", 1)[0] for c in df_mask.columns if c.startswith("channel_")}
+            df_renamed = df_mask.rename(columns=rename_map)
+            df_aug = self.add_group_activation(df_renamed, groups, channel_cv, gamma=gamma, delta=delta, beta=beta)
+            X = df_aug[[c for c in df_aug.columns if c.startswith("group_")]]
+            for mdl in self.event_models_by_mask.get(mask_id, []):
+                p = mdl.predict_proba(X)
+                if p.shape[1] == 1:
+                    single = mdl.classes_[0]
+                    p = np.full(len(X), 1.0 if single == 1 else 0.0)
+                else:
+                    p = p[:, 1]
+                fold_probas.append(p)
+            if challenge_df is None:
+                challenge_df = df_mask
 
         final_probas = np.max(fold_probas, axis=0) - np.var(fold_probas, axis=0)
         y_full, y_binary = self.predict_challenge_labels(
-            challenge_test=global_df,
+            challenge_test=challenge_df if challenge_df is not None else next(iter(mask_dfs.values())),
             challenge_probas=final_probas,
             peak_height=peak_height,
             buffer_size=buffer_size,
