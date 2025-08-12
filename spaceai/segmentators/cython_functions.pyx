@@ -12,7 +12,7 @@ import itertools
 import random
 from libc.math cimport sqrt
 
-from scipy.signal import stft
+from scipy.signal import stft, fftconvolve
 
 cpdef stft_spectral_std(cnp.ndarray[double, ndim=1] values, int nperseg=10, double epsilon=1e-6):
     """
@@ -275,6 +275,25 @@ cpdef tuple _apply_kernel_univariate2(np.ndarray[np.float32_t, ndim=1] X,
     cdef float _sum, m, std, dot_val, diff
     cdef int stride = max(1, int(length * 0.02))
 
+    if length > 50:
+        # Uso della convoluzione FFT per finestre lunghe
+        cdef float w_sum = float(np.sum(weights))
+        cdef np.ndarray conv = fftconvolve(X, weights[::-1], mode="valid").astype(np.float32)
+        cdef np.ndarray cumsum = np.cumsum(X, dtype=np.float64)
+        cdef np.ndarray cumsum2 = np.cumsum(X * X, dtype=np.float64)
+        cdef np.ndarray cumsum_p = np.concatenate(([0.0], cumsum))
+        cdef np.ndarray cumsum2_p = np.concatenate(([0.0], cumsum2))
+        cdef np.ndarray win_sum = cumsum_p[length:] - cumsum_p[:-length]
+        cdef np.ndarray win_sum2 = cumsum2_p[length:] - cumsum2_p[:-length]
+        cdef np.ndarray mean = win_sum / length
+        cdef np.ndarray stds = np.sqrt(np.maximum(win_sum2 / length - mean * mean, 1e-8))
+        cdef np.ndarray vals = (conv - mean * w_sum) / stds
+        vals = vals[::stride]
+        _max = float(np.max(vals))
+        _min = float(np.min(vals))
+        return np.float32(_max) / length, np.float32(_min) / length
+
+    # Metodo classico per finestre corte
     # Allocazione delle finestre
     cdef np.ndarray[np.float32_t, ndim=1] window = np.empty(length, dtype=np.float32)
     cdef np.ndarray[np.float32_t, ndim=1] window_norm = np.empty(length, dtype=np.float32)
