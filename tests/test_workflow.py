@@ -232,6 +232,8 @@ def test_full_workflow(tmp_path):
         links = {"external_0": {"mask_id": "m0", "internal_ids": ["internal_0"]}}
         with open(os.path.join(model_dir, "links.json"), "w") as f:
             json.dump(links, f)
+        with open(os.path.join(model_dir, "used_models.json"), "w") as f:
+            json.dump({"meta_ids": ["external_0"], "internal_ids": ["internal_0"]}, f)
         ev_dir = os.path.join(self.exp_dir, self.run_id, "models")
         os.makedirs(ev_dir, exist_ok=True)
         joblib.dump(
@@ -298,5 +300,6 @@ def test_training_run(tmp_path):
     assert glob.glob(os.path.join(channel_dir, "internal_*.pkl"))
     assert glob.glob(os.path.join(channel_dir, "external_*.pkl"))
     assert os.path.exists(os.path.join(channel_dir, "links.json"))
+    assert os.path.exists(os.path.join(channel_dir, "used_models.json"))
     assert glob.glob(os.path.join(artifacts, "event_wise_*.pkl"))
 
