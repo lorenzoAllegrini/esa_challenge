@@ -166,7 +166,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
 
         prev = history.get(run_id)
         current_space_keys = sorted(search_cv.search_spaces.keys())
-        if prev is not None and desired_n is not None and prev.get("n_iter", 0) >= desired_n and False:
+        if prev is not None and desired_n is not None and prev.get("n_iter", 0) >= desired_n:
             best_params = prev["best_params"]
             estimator = clone(search_cv.estimator).set_params(**best_params)
             estimator.fit(full_train, labels_train)
