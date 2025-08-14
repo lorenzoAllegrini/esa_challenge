@@ -233,7 +233,7 @@ def test_full_workflow(tmp_path):
         with open(os.path.join(model_dir, "links.json"), "w") as f:
             json.dump(links, f)
         with open(os.path.join(model_dir, "used_models.json"), "w") as f:
-            json.dump({"meta_ids": ["external_0"], "internal_ids": ["internal_0"]}, f)
+            json.dump({"m0": {"meta_ids": ["external_0"], "internal_ids": ["internal_0"]}}, f)
         ev_dir = os.path.join(self.exp_dir, self.run_id, "models")
         os.makedirs(ev_dir, exist_ok=True)
         joblib.dump(
@@ -300,6 +300,10 @@ def test_training_run(tmp_path):
     assert glob.glob(os.path.join(channel_dir, "internal_*.pkl"))
     assert glob.glob(os.path.join(channel_dir, "external_*.pkl"))
     assert os.path.exists(os.path.join(channel_dir, "links.json"))
-    assert os.path.exists(os.path.join(channel_dir, "used_models.json"))
+    used_file = os.path.join(channel_dir, "used_models.json")
+    assert os.path.exists(used_file)
+    with open(used_file) as f:
+        used = json.load(f)
+    assert all("internal_ids" in v and "meta_ids" in v for v in used.values())
     assert glob.glob(os.path.join(artifacts, "event_wise_*.pkl"))
 

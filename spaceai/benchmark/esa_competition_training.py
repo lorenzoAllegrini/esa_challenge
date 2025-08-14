@@ -461,8 +461,9 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         with open(links_path, "w") as f:
             json.dump(saved, f, indent=2)
 
-        # track which models were produced in this run so the predictor can
-        # reload only the relevant estimators.
+        # track which models were produced for this ``mask1`` so the predictor can
+        # reload only the relevant estimators. Store the mapping per external mask
+        # to avoid overwriting information from previous masks.
         model_dir = os.path.dirname(links_path)
         used_internal = sorted(
             {
@@ -472,8 +473,19 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             }
         )
         used_meta = sorted(list(links.keys()))
-        with open(os.path.join(model_dir, "used_models.json"), "w") as f:
-            json.dump({"internal_ids": used_internal, "meta_ids": used_meta}, f, indent=2)
+        used_path = os.path.join(model_dir, "used_models.json")
+        if os.path.exists(used_path):
+            with open(used_path, "r") as f:
+                used_data = json.load(f)
+        else:
+            used_data = {}
+        mask_run_id = self.make_run_id([tuple(mask1)])
+        used_data[mask_run_id] = {
+            "internal_ids": used_internal,
+            "meta_ids": used_meta,
+        }
+        with open(used_path, "w") as f:
+            json.dump(used_data, f, indent=2)
 
         # If training produced no model files (e.g. due to degenerate labels),
         # create a placeholder estimator so downstream code can load it.
