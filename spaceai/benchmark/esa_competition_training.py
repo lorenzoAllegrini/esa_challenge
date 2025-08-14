@@ -166,28 +166,46 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
 
         prev = history.get(run_id)
         current_space_keys = sorted(search_cv.search_spaces.keys())
-        if prev is not None and desired_n is not None and prev.get("n_iter", 0) >= desired_n:
-            best_params = prev["best_params"]
-            estimator = clone(search_cv.estimator).set_params(**best_params)
-            estimator.fit(full_train, labels_train)
-            cv_res = cross_validate(
-                estimator,
-                full_train,
-                labels_train,
-                cv=search_cv.cv,
-                scoring=make_esa_scorer(self),
-                n_jobs=-1,
-                error_score=0.0,
-            )
-            metric_key = [k for k in cv_res if k.startswith("test_")][0]
-            new_score = float(np.mean(cv_res[metric_key]))
-            if abs(new_score - prev.get("cv_score", np.nan)) > 1e-6:
-                history[run_id]["cv_score"] = new_score
-                with open(json_path, "w") as f:
-                    json.dump(history, f, indent=2)
-            seg_model = SegmentedModel(copy.deepcopy(estimator), copy.deepcopy(self.segmentator), ensemble_id)
-            joblib.dump(seg_model, model_path)
-            return estimator, new_score, {"time": 0.0, "cpu": 0.0, "mem": 0.0}
+        current_features = list(full_train.columns)
+        if (
+            prev is not None
+            and desired_n is not None
+            and prev.get("n_iter", 0) >= desired_n
+        ):
+            features_match = False
+            prev_feats = prev.get("feature_names")
+            if prev_feats is not None:
+                features_match = list(prev_feats) == current_features
+            elif os.path.exists(model_path):
+                try:
+                    loaded = joblib.load(model_path)
+                    saved_feats = list(getattr(loaded.model, "feature_names_in_", []))
+                    features_match = saved_feats == current_features
+                except Exception:
+                    features_match = False
+            if features_match:
+                best_params = prev["best_params"]
+                estimator = clone(search_cv.estimator).set_params(**best_params)
+                estimator.fit(full_train, labels_train)
+                cv_res = cross_validate(
+                    estimator,
+                    full_train,
+                    labels_train,
+                    cv=search_cv.cv,
+                    scoring=make_esa_scorer(self),
+                    n_jobs=-1,
+                    error_score=0.0,
+                )
+                metric_key = [k for k in cv_res if k.startswith("test_")][0]
+                new_score = float(np.mean(cv_res[metric_key]))
+                if abs(new_score - prev.get("cv_score", np.nan)) > 1e-6 or prev_feats is None:
+                    history[run_id]["cv_score"] = new_score
+                    history[run_id]["feature_names"] = current_features
+                    with open(json_path, "w") as f:
+                        json.dump(history, f, indent=2)
+                seg_model = SegmentedModel(copy.deepcopy(estimator), copy.deepcopy(self.segmentator), ensemble_id)
+                joblib.dump(seg_model, model_path)
+                return estimator, new_score, {"time": 0.0, "cpu": 0.0, "mem": 0.0}
 
         callback_handler = CallbackHandler((callbacks or []) + [SystemMonitorCallback()], call_every_ms)
         callback_handler.start()
@@ -251,6 +269,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             "cv_score": best_score,
             "n_iter": n_done,
             "best_params": best_params,
+            "feature_names": current_features,
         }
         with open(json_path, "w") as f:
             json.dump(history, f, indent=2)
