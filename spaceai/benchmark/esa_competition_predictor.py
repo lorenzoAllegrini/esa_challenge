@@ -134,17 +134,27 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
     # ------------------------------------------------------------------
     #  Inference helpers
     # ------------------------------------------------------------------
-    def channel_specific_ensemble(self, challenge_channel: ESA, channel_id: str) -> pd.DataFrame:
-        print(f"channel_id: {channel_id}")
-        """Apply all saved estimators for ``channel_id`` on ``challenge_channel``."""
+    def channel_specific_ensemble(
+        self,
+        challenge_channel: ESA,
+        channel_id: str,
+        mask_id: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """Apply saved estimators for ``channel_id`` on ``challenge_channel``.
+
+        If ``mask_id`` is provided only models linked to that mask are considered.
+        This mirrors the hierarchical structure used during training where each
+        external mask holds a subset of meta models and related internal
+        estimators.
+        """
         links = self.channel_links.get(channel_id, {})
-       
         if not links:
             raise RuntimeError(f"No model links found for channel {channel_id}")
 
-        # filter out models without a corresponding serialized estimator
         valid_links = {}
         for meta_id, info in links.items():
+            if mask_id is not None and info.get("mask_id", "default") != mask_id:
+                continue
             if meta_id not in self.meta_models_by_channel[channel_id]:
                 continue
             internal_ids_full = info.get("internal_ids", [])
@@ -153,7 +163,6 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 for iid in internal_ids_full
                 if iid in self.internal_models_by_channel[channel_id]
             ]
-            # skip meta models relying on missing internal estimators
             if len(internal_ids) != len(internal_ids_full):
                 continue
             if internal_ids:
@@ -163,7 +172,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 }
         if not valid_links:
             raise RuntimeError(
-                f"No serialized models available for channel {channel_id}"
+                f"No serialized models available for channel {channel_id} and mask {mask_id}"
             )
 
         df_out: Optional[pd.DataFrame] = None
@@ -175,16 +184,14 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             ensemble_id=f"stats_{channel_id}_test",
             train_phase=False,
         )
-        #print(valid_links.items())
+
         for meta_id, info in valid_links.items():
-            print(f"meta_id: {meta_id}")
             internal_ids = info.get("internal_ids", [])
-            mask_id = info.get("mask_id", "default")
+            curr_mask = info.get("mask_id", "default")
             internal_probas = []
             first_df: Optional[pd.DataFrame] = None
             skip_meta = False
-            for idx, iid in enumerate(internal_ids):
-                print(idx)
+            for iid in internal_ids:
                 mdl = self.internal_models_by_channel[channel_id][iid]
                 estimator = getattr(mdl, "model", mdl)
                 feature_names: List[str] = []
@@ -216,9 +223,9 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 df_curr = df_curr.drop(
                     columns=["event", "start", "end"], errors="ignore"
                 )
-      
+
                 p = mdl.model.predict_proba(df_curr)
-                
+
                 if p.shape[1] == 1:
                     cls = mdl.model.classes_[0]
                     internal_probas.append(
@@ -238,15 +245,15 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 mp = np.full(len(meta_df), 1.0 if cls == 1 else 0.0)
             else:
                 mp = mp[:, 1]
-            mask_probas[mask_id].append(mp)
+            mask_probas[curr_mask].append(mp)
             if df_out is None and first_df is not None:
                 df_out = first_df[["start", "end"]].copy()
 
         if not mask_probas or df_out is None:
             raise RuntimeError("No channel data processed")
-        for mask_id, probas in mask_probas.items():
+        for m_id, probas in mask_probas.items():
             mean_proba = np.mean(probas, axis=0)
-            df_out[f"{channel_id}_{mask_id}"] = mean_proba
+            df_out[f"{channel_id}_{m_id}"] = mean_proba
         return df_out
 
     def run(
@@ -272,12 +279,14 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         meta = pd.read_csv(os.path.join(source_folder, "channels.csv")).assign(Channel=lambda d: d.Channel.str.strip())
         groups = meta[meta["Channel"].isin(mission.target_channels)].groupby("Group")["Channel"].apply(list).to_dict()
 
+        mask_ids = sorted(self.event_models_by_mask.keys())
         mask_dfs: Dict[str, pd.DataFrame] = {}
         channel_cv: Dict[str, float] = {}
+        challenge_channels: Dict[str, ESA] = {}
         for channel_id in mission.target_channels:
             if int(channel_id.split("_")[1]) < 41:
                 continue
-            challenge_channel = ESA(
+            challenge_channels[channel_id] = ESA(
                 root=self.data_root,
                 mission=mission,
                 channel_id=channel_id,
@@ -290,13 +299,20 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 challenge_parquet=test_parquet,
                 download=False,
             )
-            df_ch = self.channel_specific_ensemble(challenge_channel, channel_id)
-            for col in [c for c in df_ch.columns if c not in {"start", "end"}]:
-                base_ch, mask_id = col.rsplit("_", 1)
+            channel_cv[channel_id] = 1.0
+
+        for mask_id in mask_ids:
+            for channel_id, challenge_channel in challenge_channels.items():
+                try:
+                    df_ch = self.channel_specific_ensemble(
+                        challenge_channel, channel_id, mask_id=mask_id
+                    )
+                except RuntimeError:
+                    continue
                 if mask_id not in mask_dfs:
                     mask_dfs[mask_id] = df_ch[["start", "end"]].copy()
-                mask_dfs[mask_id][col] = df_ch[col]
-            channel_cv[channel_id] = 1.0
+                for col in [c for c in df_ch.columns if c not in {"start", "end"}]:
+                    mask_dfs[mask_id][col] = df_ch[col]
 
         if not mask_dfs:
             raise RuntimeError("No channels processed")
@@ -304,9 +320,15 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         fold_probas = []
         challenge_df: Optional[pd.DataFrame] = None
         for mask_id, df_mask in mask_dfs.items():
-            rename_map = {c: c.rsplit("_", 1)[0] for c in df_mask.columns if c.startswith("channel_")}
+            rename_map = {
+                c: c.rsplit("_", 1)[0]
+                for c in df_mask.columns
+                if c.startswith("channel_")
+            }
             df_renamed = df_mask.rename(columns=rename_map)
-            df_aug = self.add_group_activation(df_renamed, groups, channel_cv, gamma=gamma, delta=delta, beta=beta)
+            df_aug = self.add_group_activation(
+                df_renamed, groups, channel_cv, gamma=gamma, delta=delta, beta=beta
+            )
             X = df_aug[[c for c in df_aug.columns if c.startswith("group_")]]
             for mdl in self.event_models_by_mask.get(mask_id, []):
                 p = mdl.predict_proba(X)
