@@ -425,6 +425,21 @@ class EsaDatasetSegmentator2:
             The selected DataFrame extended with shapelet responses and the
             corresponding anomaly intervals.
         """
+        output_dir = os.path.join(
+            self.exp_dir, self.run_id, "channel_segments", esa_channel.channel_id
+        )
+        os.makedirs(output_dir, exist_ok=True)
+        pq_path = os.path.join(output_dir, f"{ensemble_id}_shapelets.parquet")
+
+        if os.path.exists(pq_path):
+            sub_df = pd.read_parquet(pq_path)
+            segments = sub_df.values.tolist()
+            anoms = self.get_event_intervals(segments, 1)
+            if initialize:
+                self.shapelet_miner.initialize_kernels(
+                    esa_channel, mask=shapelet_mask, ensemble_id=ensemble_id
+                )
+            return sub_df, anoms
 
         mask_bool = np.ones(len(df), dtype=bool)
         if masks:
@@ -438,12 +453,14 @@ class EsaDatasetSegmentator2:
                 raise ValueError("mode must be 'exclude' or 'include'")
 
         sub_df = df[mask_bool].reset_index(drop=True)
-        
-        
+
         sub_df = self.add_shapelet_features(
-            sub_df, esa_channel, mask=shapelet_mask, ensemble_id=ensemble_id, initialize=initialize, 
+            sub_df,
+            esa_channel,
+            mask=shapelet_mask,
+            ensemble_id=ensemble_id,
+            initialize=initialize,
         )
-        #print(sub_df)
         base_columns = sub_df.columns
         segments = sub_df.values.tolist()
 
@@ -453,9 +470,8 @@ class EsaDatasetSegmentator2:
             )
         else:
             pooled_columns = base_columns
-        
-        anoms = self.get_event_intervals(segments, 1)
 
-        #print(f"shapelet anomalies: {anoms}")
+        anoms = self.get_event_intervals(segments, 1)
         sub_df = pd.DataFrame(segments, columns=pooled_columns)
+        sub_df.to_parquet(pq_path, index=False)
         return sub_df, anoms
