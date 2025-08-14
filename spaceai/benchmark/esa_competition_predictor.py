@@ -74,8 +74,15 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             if os.path.exists(used_file):
                 with open(used_file, "r") as f:
                     used = json.load(f)
-                allowed_internal = set(used.get("internal_ids", []))
-                allowed_meta = set(used.get("meta_ids", []))
+                if "internal_ids" in used or "meta_ids" in used:
+                    allowed_internal = set(used.get("internal_ids", []))
+                    allowed_meta = set(used.get("meta_ids", []))
+                else:
+                    allowed_internal = set()
+                    allowed_meta = set()
+                    for info in used.values():
+                        allowed_internal.update(info.get("internal_ids", []))
+                        allowed_meta.update(info.get("meta_ids", []))
 
             links_file = os.path.join(ch_dir, "links.json")
             if os.path.exists(links_file):
