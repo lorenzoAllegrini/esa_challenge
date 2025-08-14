@@ -461,14 +461,22 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
         with open(links_path, "w") as f:
             json.dump(saved, f, indent=2)
 
+        # track which models were produced in this run so the predictor can
+        # reload only the relevant estimators.
+        model_dir = os.path.dirname(links_path)
+        used_internal = sorted(
+            {
+                iid
+                for info in links.values()
+                for iid in info.get("internal_ids", [])
+            }
+        )
+        used_meta = sorted(list(links.keys()))
+        with open(os.path.join(model_dir, "used_models.json"), "w") as f:
+            json.dump({"internal_ids": used_internal, "meta_ids": used_meta}, f, indent=2)
+
         # If training produced no model files (e.g. due to degenerate labels),
         # create a placeholder estimator so downstream code can load it.
-        model_dir = os.path.join(
-            self.exp_dir,
-            self.run_id,
-            "models",
-            f"channel_{channel_id}",
-        )
         if not glob.glob(os.path.join(model_dir, "internal_*.pkl")):
             placeholder = DummyClassifier(strategy="constant", constant=0)
             placeholder.fit([[0], [1]], [0, 1])

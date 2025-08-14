@@ -4,7 +4,7 @@ import glob
 import json
 import os
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import joblib
 import numpy as np
@@ -64,17 +64,33 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         model_base = os.path.join("experiments", self.artifacts_dir, "models")
 
         for ch_dir in glob.glob(os.path.join(model_base, "channel_*")):
-      
+
             base = os.path.basename(ch_dir)
             ch_id = base[len("channel_") :]
-        
+
+            used_file = os.path.join(ch_dir, "used_models.json")
+            allowed_internal: Optional[Set[str]] = None
+            allowed_meta: Optional[Set[str]] = None
+            if os.path.exists(used_file):
+                with open(used_file, "r") as f:
+                    used = json.load(f)
+                allowed_internal = set(used.get("internal_ids", []))
+                allowed_meta = set(used.get("meta_ids", []))
+
             links_file = os.path.join(ch_dir, "links.json")
             if os.path.exists(links_file):
                 with open(links_file, "r") as f:
-                    self.channel_links[ch_id] = json.load(f)
+                    links_data = json.load(f)
+                if allowed_meta is not None:
+                    links_data = {
+                        k: v for k, v in links_data.items() if k in allowed_meta
+                    }
+                self.channel_links[ch_id] = links_data
 
             for p in glob.glob(os.path.join(ch_dir, "internal_*.pkl")):
                 mid = os.path.splitext(os.path.basename(p))[0]
+                if allowed_internal is not None and mid not in allowed_internal:
+                    continue
                 model = joblib.load(p)
                 estimator = getattr(model, "model", model)
                 feature_names: List[str] = []
@@ -94,6 +110,8 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 self.internal_models_by_channel[ch_id][mid] = model
             for p in glob.glob(os.path.join(ch_dir, "external_*.pkl")):
                 mid = os.path.splitext(os.path.basename(p))[0]
+                if allowed_meta is not None and mid not in allowed_meta:
+                    continue
                 model = joblib.load(p)
                 self.meta_models[mid] = model
                 self.meta_models_by_channel[ch_id][mid] = model

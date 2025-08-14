@@ -1,6 +1,9 @@
+import os
 import sys
 import types
 import numpy as np
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Provide a minimal torch stub to satisfy optional imports
 torch = types.ModuleType("torch")
