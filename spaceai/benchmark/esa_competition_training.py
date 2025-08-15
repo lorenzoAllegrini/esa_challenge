@@ -145,6 +145,23 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             joblib.dump(seg_model, model_path)
             return estimator, 0.0, {"time": 0.0, "cpu": 0.0, "mem": 0.0}
 
+        # If every training split contains a single class, the underlying
+        # estimator would fail during cross-validation.  In this degenerate
+        # scenario fall back to a constant classifier that always predicts
+        # the absence of anomalies (class ``0``).
+        cv_splits = list(search_cv.cv.split(full_train, labels_train))
+        has_valid_fold = any(
+            np.unique(labels_train[tr_idx]).size >= 2 for tr_idx, _ in cv_splits
+        )
+        if not has_valid_fold:
+            estimator = DummyClassifier(strategy="constant", constant=0)
+            estimator.fit(full_train, labels_train)
+            seg_model = SegmentedModel(
+                copy.deepcopy(estimator), copy.deepcopy(self.segmentator), ensemble_id
+            )
+            joblib.dump(seg_model, model_path)
+            return estimator, 0.0, {"time": 0.0, "cpu": 0.0, "mem": 0.0}
+
         # Ensure every CV split contains both classes, otherwise CV-based
         # model selection would fail with ``ValueError``.  When a degenerate
         # split is detected fall back to a constant classifier.
@@ -210,10 +227,10 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                     cv=search_cv.cv,
                     scoring=make_esa_scorer(self),
                     n_jobs=-1,
-                    error_score=0.0,
+                    error_score=np.nan,
                 )
                 metric_key = [k for k in cv_res if k.startswith("test_")][0]
-                new_score = float(np.mean(cv_res[metric_key]))
+                new_score = float(np.nanmean(cv_res[metric_key]))
                 if abs(new_score - prev.get("cv_score", np.nan)) > 1e-6 or prev_feats is None:
                     history[run_id]["cv_score"] = new_score
                     history[run_id]["feature_names"] = current_features
@@ -255,10 +272,10 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 cv=search_cv.cv,
                 scoring=make_esa_scorer(self),
                 n_jobs=1,
-                error_score=0.0,
+                error_score=np.nan,
             )
             metric_key = [k for k in cv_res if k.startswith("test_")][0]
-            fallback_score = float(np.mean(cv_res[metric_key]))
+            fallback_score = float(np.nanmean(cv_res[metric_key]))
             callback_handler.stop()
             metrics = callback_handler.collect(reset=True)
             seg_model = SegmentedModel(copy.deepcopy(estimator), copy.deepcopy(self.segmentator), ensemble_id)
@@ -276,10 +293,10 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             cv=search_cv.cv,
             scoring=make_esa_scorer(self),
             n_jobs=-1,
-            error_score=0.0,
+            error_score=np.nan,
         )
         metric_key = [k for k in cv_res if k.startswith("test_")][0]
-        best_score = float(np.mean(cv_res[metric_key]))
+        best_score = float(np.nanmean(cv_res[metric_key]))
         n_done = desired_n if desired_n is not None else len(search_cv.cv_results_["params"])
         history[run_id] = {
             "cv_score": best_score,
