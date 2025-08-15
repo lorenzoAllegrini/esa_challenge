@@ -19,6 +19,7 @@ import pandas as pd
 from sklearn.base import clone
 from sklearn.dummy import DummyClassifier
 from sklearn.model_selection import cross_validate
+from sklearn.pipeline import Pipeline
 from tqdm import tqdm
 
 from spaceai.data import (  # typing re-export
@@ -185,7 +186,22 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                     features_match = False
             if features_match:
                 best_params = prev["best_params"]
-                estimator = clone(search_cv.estimator).set_params(**best_params)
+                estimator = clone(search_cv.estimator)
+                try:
+                    estimator.set_params(**best_params)
+                except ValueError:
+                    if isinstance(estimator, Pipeline):
+                        step_name = estimator.steps[-1][0]
+                        best_params = {
+                            (k if "__" in k else f"{step_name}__{k}"): v
+                            for k, v in best_params.items()
+                        }
+                        estimator.set_params(**best_params)
+                        history[run_id]["best_params"] = best_params
+                        with open(json_path, "w") as f:
+                            json.dump(history, f, indent=2)
+                    else:
+                        raise
                 estimator.fit(full_train, labels_train)
                 cv_res = cross_validate(
                     estimator,
