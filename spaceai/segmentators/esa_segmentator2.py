@@ -325,7 +325,7 @@ class EsaDatasetSegmentator2:
         )
 
         df = df.reset_index(drop=True).copy()
-        for i in range(self.shapelet_miner.num_kernels):
+        for i in range(len(self.shapelet_miner.kernels)):
             df[f"kernel_{i}_max_convolution"] = raw_features[:, 2 * i]
             df[f"kernel_{i}_min_convolution"] = raw_features[:, 2 * i + 1]
    

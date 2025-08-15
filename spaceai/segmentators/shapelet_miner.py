@@ -187,6 +187,7 @@ class ShapeletMiner:
             else:
                 new_kernels.append(arr)
         self.kernels = new_kernels
+        self.num_kernels = len(self.kernels)
 
         all_payload[ensemble_id] = {
             "mask": [int(mask[0]), int(mask[1])],
