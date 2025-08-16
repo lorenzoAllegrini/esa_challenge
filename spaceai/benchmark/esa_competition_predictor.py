@@ -9,11 +9,13 @@ from typing import Any, Dict, List, Optional, Set
 import joblib
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from spaceai.data import ESA, ESAMission, ESAMissions
 from spaceai.segmentators.esa_segmentator2 import EsaDatasetSegmentator2
 
 from .esa_competition import ESACompetitionBenchmark
+
 
 class ESACompetitionPredictor(ESACompetitionBenchmark):
     """Benchmark variant used only for inference.
@@ -30,7 +32,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         data_root: str = "datasets",
         id_offset: int = 14728321,
         seed: int = 42,
-        mission = ESAMissions.MISSION_1.value
+        mission=ESAMissions.MISSION_1.value,
     ) -> None:
         run_id = os.path.basename(os.path.normpath(artifacts_dir))
         super().__init__(
@@ -125,8 +127,8 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 model = joblib.load(p)
                 self.meta_models[mid] = model
                 self.meta_models_by_channel[ch_id][mid] = model
-            
-            #print(self.meta_models["channel_12"].keys())
+
+            # print(self.meta_models["channel_12"].keys())
         self.event_models_by_mask = defaultdict(list)
         print(os.path.join(model_base, "event_wise_*.pkl"))
         for p in glob.glob(os.path.join(model_base, "event_wise_*.pkl")):
@@ -241,7 +243,10 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             if skip_meta or not internal_probas:
                 continue
             meta_df = pd.DataFrame(
-                {f"channel_{i}": internal_probas[i] for i in range(len(internal_probas))}
+                {
+                    f"channel_{i}": internal_probas[i]
+                    for i in range(len(internal_probas))
+                }
             )
             meta_mdl = self.meta_models_by_channel[channel_id][meta_id]
             mp = meta_mdl.model.predict_proba(meta_df)
@@ -281,8 +286,15 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             self.load_models()
 
         source_folder = os.path.join(self.data_root, mission.inner_dirpath)
-        meta = pd.read_csv(os.path.join(source_folder, "channels.csv")).assign(Channel=lambda d: d.Channel.str.strip())
-        groups = meta[meta["Channel"].isin(mission.target_channels)].groupby("Group")["Channel"].apply(list).to_dict()
+        meta = pd.read_csv(os.path.join(source_folder, "channels.csv")).assign(
+            Channel=lambda d: d.Channel.str.strip()
+        )
+        groups = (
+            meta[meta["Channel"].isin(mission.target_channels)]
+            .groupby("Group")["Channel"]
+            .apply(list)
+            .to_dict()
+        )
 
         mask_ids = sorted(self.event_models_by_mask.keys())
         print(mask_ids)
@@ -315,10 +327,11 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 challenge_parquet=test_parquet,
                 download=False,
             )
-            
 
-        for mask_id in mask_ids:
-            for channel_id, challenge_channel in challenge_channels.items():
+        for mask_id in tqdm(mask_ids, desc="Masks"):
+            for channel_id, challenge_channel in tqdm(
+                challenge_channels.items(), desc="Channels", leave=False
+            ):
                 try:
                     df_ch = self.channel_specific_ensemble(
                         challenge_channel, channel_id, mask_id=mask_id
@@ -333,11 +346,12 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         if not mask_dfs:
             raise RuntimeError("No channels processed")
 
-        
         fold_probas = []
         challenge_df: Optional[pd.DataFrame] = None
         for mask_id, df_mask in mask_dfs.items():
-            channel_cv = pd.read_csv(os.path.join(self.artifacts_dir, f"cv_scores_fold{mask_id}.csv"))
+            channel_cv = pd.read_csv(
+                os.path.join(self.artifacts_dir, f"cv_scores_fold{mask_id}.csv")
+            )
             rename_map = {
                 c: c.rsplit("_", 1)[0]
                 for c in df_mask.columns
@@ -361,7 +375,11 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
 
         final_probas = np.max(fold_probas, axis=0) - np.var(fold_probas, axis=0)
         y_full, y_binary = self.predict_challenge_labels(
-            challenge_test=challenge_df if challenge_df is not None else next(iter(mask_dfs.values())),
+            challenge_test=(
+                challenge_df
+                if challenge_df is not None
+                else next(iter(mask_dfs.values()))
+            ),
             challenge_probas=final_probas,
             peak_height=peak_height,
             buffer_size=buffer_size,
