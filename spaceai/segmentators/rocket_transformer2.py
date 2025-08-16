@@ -9,7 +9,6 @@ from numba import prange
 from sklearn.cluster import KMeans
 from sktime.transformations.base import BaseTransformer
 from sktime.transformations.panel.rocket import Rocket
-from tslearn.clustering import TimeSeriesKMeans
 
 
 def extract_kernels_from_data(
@@ -273,8 +272,8 @@ class ShapeletMiner:
                 centroids.extend(kernels_list)
             elif len(kernels_list) > k_clusters:
                 # Esegui clustering su data
-                kmeans = TimeSeriesKMeans(
-                    n_clusters=k_clusters, metric="euclidean", random_state=0
+                kmeans = KMeans(
+                    n_clusters=k_clusters, random_state=0, n_init=10
                 ).fit(data)
                 labels = kmeans.labels_
                 # Per ciascun cluster, seleziona il kernel con score massimo
