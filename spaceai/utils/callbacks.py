@@ -9,7 +9,15 @@ from typing import (
     Optional,
 )
 
-import psutil
+# ``psutil`` is an optional dependency used only for monitoring resource
+# consumption.  Importing it unconditionally makes the package unusable in
+# lightweight environments where the library is not available (such as the
+# execution sandbox for these tests).  Instead we try to import it lazily and
+# degrade gracefully when it cannot be found.
+try:  # pragma: no cover - exercised in environments without psutil
+    import psutil  # type: ignore[import-untyped]
+except ModuleNotFoundError:  # pragma: no cover - executed when psutil missing
+    psutil = None  # type: ignore[assignment]
 
 
 class Callback:
@@ -60,12 +68,20 @@ class CallbackHandler:
 
 class SystemMonitorCallback(Callback):
     def __init__(self):
-        self.p: psutil.Process = psutil.Process(os.getpid())
+        if psutil is None:  # pragma: no cover - behaviour exercised when psutil missing
+            # When psutil is not available we cannot monitor system metrics.
+            # The callback still initialises but metrics will remain at zero so
+            # callers can continue without optional dependency failures.
+            self.p = None  # type: ignore[assignment]
+        else:
+            self.p = psutil.Process(os.getpid())
         self.n: int = 0
         self.cpu: float = 0
         self.mem: float = 0
 
     def call(self):
+        if self.p is None:
+            return
         curr_cpu = self.p.cpu_percent() / psutil.cpu_count()
         curr_mem = self.p.memory_info().rss
         self.cpu = self.cpu + (curr_cpu - self.cpu) / (self.n + 1)

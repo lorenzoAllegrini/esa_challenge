@@ -15,7 +15,15 @@ import numpy as np
 import pandas as pd
 from sklearn.base import clone
 from sklearn.model_selection import cross_validate
-from skopt.space import Dimension
+# ``scikit-optimize`` provides the ``Dimension`` class used for defining search
+# spaces.  The package is optional and not available in some lightweight
+# execution environments, hence we attempt to import it lazily and provide a
+# minimal stub when missing so that the rest of the module can still be
+# imported.
+try:  # pragma: no cover - behaviour depends on environment
+    from skopt.space import Dimension  # type: ignore[import-untyped]
+except ModuleNotFoundError:  # pragma: no cover - executed without scikit-optimize
+    from typing import Any as Dimension  # type: ignore[assignment]
 from torch.utils.data import (
     DataLoader,
     Subset,
