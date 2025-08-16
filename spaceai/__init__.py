@@ -14,6 +14,13 @@ import numpy as np
 if not hasattr(np, "int"):
     np.int = int  # type: ignore[attr-defined]
 if not hasattr(np, "bool"):
-    np.bool = bool  # type: ignore[attr-defined]
+    # ``np.bool`` was removed in NumPy 2.0.  Older dependencies occasionally
+    # still reference it expecting the NumPy scalar type (``np.bool_``), not the
+    # builtin ``bool``.  Assigning the Python ``bool`` type here leads to
+    # failures when libraries check for NumPy specific attributes such as
+    # ``view``.  To remain backwards compatible we therefore alias the missing
+    # name to ``np.bool_`` which replicates the behaviour of the deprecated
+    # alias without breaking libraries that rely on NumPy's boolean dtype.
+    np.bool = np.bool_  # type: ignore[attr-defined]
 
 __version__ = "0.0.1"

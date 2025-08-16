@@ -6,9 +6,19 @@ from typing import (
     Tuple,
 )
 
-import requests  # type: ignore[import-untyped]
 from tqdm import tqdm
 import numpy as np
+
+# ``requests`` is a convenient dependency for downloading files but it is not
+# strictly required for the rest of the project.  Some minimal testing
+# environments (including the execution sandbox used for this repository) do
+# not have it installed and network access may be restricted.  We therefore
+# attempt to import it optionally and fall back to ``urllib`` when unavailable.
+try:  # pragma: no cover - handled via tests
+    import requests  # type: ignore[import-untyped]
+except ModuleNotFoundError:  # pragma: no cover - exercised when requests missing
+    requests = None  # type: ignore[assignment]
+    import urllib.request as urllib_request
 
 def download_and_extract_zip(url: str, extract_to: str, cleanup: bool = False):
     filename = download_file(url)
@@ -19,21 +29,39 @@ def download_file(url: str, to: Optional[str] = None):
         local_filename = url.split("/")[-1]
     else:
         local_filename = to
-
-    with requests.get(url, stream=True) as r:
-        r.raise_for_status()
-        total_size = int(r.headers.get("content-length", 0))
-        block_size = 1024
-        with open(local_filename, "wb") as f, tqdm(
-            desc=local_filename,
-            total=total_size,
-            unit="iB",
-            unit_scale=True,
-            unit_divisor=1024,
-        ) as bar:
-            for chunk in r.iter_content(chunk_size=block_size):
-                f.write(chunk)
-                bar.update(len(chunk))
+    if requests is not None:
+        # Preferred implementation using ``requests`` when available.
+        with requests.get(url, stream=True) as r:  # type: ignore[union-attr]
+            r.raise_for_status()
+            total_size = int(r.headers.get("content-length", 0))
+            block_size = 1024
+            with open(local_filename, "wb") as f, tqdm(
+                desc=local_filename,
+                total=total_size,
+                unit="iB",
+                unit_scale=True,
+                unit_divisor=1024,
+            ) as bar:
+                for chunk in r.iter_content(chunk_size=block_size):
+                    f.write(chunk)
+                    bar.update(len(chunk))
+    else:  # Fallback using urllib when ``requests`` is missing.
+        with urllib_request.urlopen(url) as response, open(local_filename, "wb") as f:
+            total_size = int(response.headers.get("content-length", 0))
+            block_size = 1024
+            with tqdm(
+                desc=local_filename,
+                total=total_size,
+                unit="iB",
+                unit_scale=True,
+                unit_divisor=1024,
+            ) as bar:
+                while True:
+                    chunk = response.read(block_size)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    bar.update(len(chunk))
     return local_filename
 
 def extract_zip(filename: str, extract_to: str, cleanup: bool = False):
