@@ -1,0 +1,32 @@
+{
+  "external_7abd8f33": {
+    "mask_id": "d00245a5",
+    "internal_ids": [
+      "internal_2c429132",
+      "internal_00eda710",
+      "internal_a9a42935",
+      "internal_c4a2912f",
+      "internal_e3bcd3d1"
+    ]
+  },
+  "external_485bddfb": {
+    "mask_id": "d00245a5",
+    "internal_ids": [
+      "internal_421a26b6",
+      "internal_f4c78ba6",
+      "internal_e6052073",
+      "internal_4cd3e266",
+      "internal_9700e78f"
+    ]
+  },
+  "external_4a8dc12a": {
+    "mask_id": "d00245a5",
+    "internal_ids": [
+      "internal_fd8085cf",
+      "internal_4997ab93",
+      "internal_d6e76f69",
+      "internal_9bf93620",
+      "internal_193bac4a"
+    ]
+  }
+}

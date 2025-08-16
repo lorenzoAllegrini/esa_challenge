@@ -281,17 +281,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
 
         mask_ids = sorted(self.event_models_by_mask.keys())
         mask_dfs: Dict[str, pd.DataFrame] = {}
-
-        # Load cross-validation scores saved during training. Multiple folds
-        # may exist, therefore average them for each channel.
-        cv_files = glob.glob(os.path.join(self.artifacts_dir, "cv_scores_fold*.csv"))
-        cv_raw: Dict[str, List[float]] = defaultdict(list)
-        for csv_path in cv_files:
-            df_cv = pd.read_csv(csv_path)
-            for _, row in df_cv.iterrows():
-                ch = str(row["channel"])
-                cv_raw[ch].append(float(row["cv_score"]))
-
+        channel_cv: Dict[str, float] = {}
         challenge_channels: Dict[str, ESA] = {}
         for channel_id in mission.target_channels:
             if int(channel_id.split("_")[1]) < 41:
@@ -309,7 +299,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 challenge_parquet=test_parquet,
                 download=False,
             )
-            
+            channel_cv[channel_id] = 1.0
 
         for mask_id in mask_ids:
             for channel_id, challenge_channel in challenge_channels.items():
@@ -327,11 +317,9 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         if not mask_dfs:
             raise RuntimeError("No channels processed")
 
-        
         fold_probas = []
         challenge_df: Optional[pd.DataFrame] = None
         for mask_id, df_mask in mask_dfs.items():
-            channel_cv = pd.read_csv(os.path.join(self.artifacts_dir, f"cv_scores_fold{mask_id}.csv"))
             rename_map = {
                 c: c.rsplit("_", 1)[0]
                 for c in df_mask.columns

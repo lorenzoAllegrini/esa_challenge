@@ -652,7 +652,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                     )
                     channel_cv[channel_id] = channel_score
                 df_cv = pd.DataFrame(list(channel_cv.items()), columns=["channel", "cv_score"])
-                cv_csv = os.path.join(feat_dir, f"cv_scores_fold{mask_run_id}.csv")
+                cv_csv = os.path.join(feat_dir, f"cv_scores_fold{fold_idx:02d}.csv")
                 df_cv.to_csv(cv_csv, index=False)
             final_train = self.add_group_activation(
                 final_train, groups, channel_cv, gamma=gamma, delta=delta, beta=beta
