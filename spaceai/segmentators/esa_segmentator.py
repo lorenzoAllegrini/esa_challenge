@@ -16,7 +16,6 @@ from spaceai.segmentators.functions import (
     stft_spectral_std,
     calculate_slope,
     spearman_correlation,
-    mann_kendall_test_tau,
     diff_peaks,
     diff_var
 )
@@ -38,7 +37,6 @@ import math
 import random 
 import itertools
 from sktime.transformations.panel.rocket import Rocket
-from spaceai.segmentators.rocket_transformer2 import RocketExtracted2
 from spaceai.data.esa import ESA
 from scipy.stats import kurtosis, skew
 
@@ -51,7 +49,6 @@ from spaceai.segmentators.functions import (
     stft_spectral_std,
     calculate_slope,
     spearman_correlation,
-    mann_kendall_test_tau,
     diff_peaks,
     diff_var
 )
@@ -75,7 +72,6 @@ class EsaDatasetSegmentator:
         "stft": stft_spectral_std,
         "slope": calculate_slope,
         "sp_correlation": spearman_correlation,
-        "mk_tau": mann_kendall_test_tau,
         "mean" : np.mean,
         "var" : np.var,
         "std" : np.std,

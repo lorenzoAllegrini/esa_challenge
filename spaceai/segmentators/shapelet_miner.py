@@ -10,10 +10,8 @@ from typing import (
 import numpy as np
 import pandas as pd
 from numba import prange
-from sklearn.cluster import KMeans
 from sktime.transformations.base import BaseTransformer
 from sktime.transformations.panel.rocket import Rocket
-from tslearn.clustering import TimeSeriesKMeans
 
 from spaceai.data import ESA
 
