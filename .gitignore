@@ -13,8 +13,11 @@ __pycache__/
 # VS Code
 .vscode/
 manual_labeller.py
+df_curr
+inference_artifacts/**
 experiments/**
 datasets/**
 old_stuff/**
+
 # Ambiente
 .env
