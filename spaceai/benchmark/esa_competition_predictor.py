@@ -281,7 +281,20 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
 
         mask_ids = sorted(self.event_models_by_mask.keys())
         mask_dfs: Dict[str, pd.DataFrame] = {}
-        channel_cv: Dict[str, float] = {}
+
+        # Load cross-validation scores saved during training. Multiple folds
+        # may exist, therefore average them for each channel.
+        cv_files = glob.glob(os.path.join(self.artifacts_dir, "cv_scores_fold*.csv"))
+        cv_raw: Dict[str, List[float]] = defaultdict(list)
+        for csv_path in cv_files:
+            df_cv = pd.read_csv(csv_path)
+            for _, row in df_cv.iterrows():
+                ch = str(row["channel"])
+                cv_raw[ch].append(float(row["cv_score"]))
+        channel_cv: Dict[str, float] = {
+            ch: float(np.mean(scores)) for ch, scores in cv_raw.items()
+        }
+
         challenge_channels: Dict[str, ESA] = {}
         for channel_id in mission.target_channels:
             if int(channel_id.split("_")[1]) < 41:
@@ -299,7 +312,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 challenge_parquet=test_parquet,
                 download=False,
             )
-            channel_cv[channel_id] = 1.0
+            channel_cv.setdefault(channel_id, 1.0)
 
         for mask_id in mask_ids:
             for channel_id, challenge_channel in challenge_channels.items():
