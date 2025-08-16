@@ -61,7 +61,10 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
     def load_models(self) -> None:
         """Load serialized models from ``artifacts_dir``."""
 
-        model_base = os.path.join("experiments", self.artifacts_dir, "models")
+        model_base = os.path.join(self.artifacts_dir, "models")
+
+        files = glob.glob(model_base, recursive=True)
+        print(f"files: {files}")
 
         for ch_dir in glob.glob(os.path.join(model_base, "channel_*")):
 
@@ -125,7 +128,9 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             
             #print(self.meta_models["channel_12"].keys())
         self.event_models_by_mask = defaultdict(list)
+        print(os.path.join(model_base, "event_wise_*.pkl"))
         for p in glob.glob(os.path.join(model_base, "event_wise_*.pkl")):
+            print(p)
             mask_id = os.path.splitext(os.path.basename(p))[0].split("event_wise_")[1]
             model = joblib.load(p)
             self.event_models.append(model)
@@ -280,6 +285,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         groups = meta[meta["Channel"].isin(mission.target_channels)].groupby("Group")["Channel"].apply(list).to_dict()
 
         mask_ids = sorted(self.event_models_by_mask.keys())
+        print(mask_ids)
         mask_dfs: Dict[str, pd.DataFrame] = {}
 
         # Load cross-validation scores saved during training. Multiple folds

@@ -16,7 +16,7 @@ def kernel_column_selector(X):
 
 def main():
     parser = argparse.ArgumentParser(description="ESA competition inference")
-    parser.add_argument("--artifacts-dir", required=True)
+    parser.add_argument("--artifacts-dir", default="inference_artifacts")
     parser.add_argument("--test-parquet", required=True)
     parser.add_argument("--output", default="submission.csv")
     args = parser.parse_args()
