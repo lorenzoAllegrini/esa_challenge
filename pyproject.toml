@@ -22,6 +22,9 @@ numba = "^0.61.2"
 pyarrow = "^16.0.0"
 scikit-optimize = "^0.9.0"
 sktime = "^0.38.3"
+# SciPy 1.15 introduced MultiUFunc import errors with NumPy 2.x on
+# some platforms. Restrict to the latest 1.14 release for stability.
+scipy = ">=1.14,<1.15"
 cython = "^3.0.10"
 
 [tool.poetry.group.dev]
