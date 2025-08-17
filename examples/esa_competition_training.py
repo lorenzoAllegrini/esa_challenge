@@ -34,7 +34,7 @@ def make_logistic_search_cv(pipeline, space, scorer):
         search_spaces=space,
         scoring=scorer,
         cv=TimeSeriesSplit(n_splits=3),
-        n_iter=50,
+        n_iter=100,
         n_jobs=-1,
         verbose=0,
         error_score=0.0
@@ -200,8 +200,7 @@ def main():
         search_cv_factory2=search_cv_factory2,
         search_cv_factory3=search_cv_factory2,
         skip_channel_training=True,
-        final_estimators=2
-        
+        final_estimators=2,
     )
 
 
