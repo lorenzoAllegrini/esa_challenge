@@ -130,7 +130,6 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 self.meta_models[mid] = model
                 self.meta_models_by_channel[ch_id][mid] = model
 
-        print(f"channel 12 links: {self.channel_links['channel_12']}")
         self.event_models_by_mask = defaultdict(list)
    
         for p in glob.glob(os.path.join(model_base, "event_wise_*.pkl")):
@@ -157,14 +156,13 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         estimators.
         """
         links = self.channel_links.get(channel_id, {})
-        print(links)
+  
         if not links:
             raise RuntimeError(f"No model links found for channel {channel_id}")
 
         valid_links = {}
         for meta_id, info in links.items():
-            print(meta_id)
-            print(info.get("mask_id", "default"))
+          
             if mask_id is not None and info.get("mask_id", "default") != mask_id:
                 continue
             if meta_id not in self.meta_models_by_channel[channel_id]:
@@ -319,8 +317,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         
         for channel_id in mission.target_channels:
             
-            if int(channel_id.split("_")[1]) < 13:
-                continue
+        
             challenge_channels[channel_id] = ESA(
                 root=self.data_root,
                 mission=mission,
@@ -336,12 +333,9 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             )
         if len(mask_ids) == 0:
             raise RuntimeError("len 0")
-        first = True
+
         for mask_id in tqdm(mask_ids, desc="Masks"):
-            print(f"mask_id: {mask_id}")
-            if first:
-                first = False
-                #continue
+
             for channel_id, challenge_channel in tqdm(
                 challenge_channels.items(), desc="Channels", leave=False
             ):
@@ -394,7 +388,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 fold_probas.append(p)
             if challenge_df is None:
                 challenge_df = df_mask
-
+       
         final_probas = np.max(fold_probas, axis=0) #- np.var(fold_probas, axis=0)
         y_full, y_binary = self.predict_challenge_labels(
             challenge_test=(
