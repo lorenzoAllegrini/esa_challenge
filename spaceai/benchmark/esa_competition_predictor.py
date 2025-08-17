@@ -312,6 +312,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
 
         challenge_channels: Dict[str, ESA] = {}
         for channel_id in mission.target_channels:
+            print(channel_id)
             if int(channel_id.split("_")[1]) < 11:
                 continue
             challenge_channels[channel_id] = ESA(
@@ -327,11 +328,9 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 challenge_parquet=test_parquet,
                 download=False,
             )
-        first = True
+
         for mask_id in tqdm(mask_ids, desc="Masks"):
-            if first:
-                first=False
-                continue
+            print(mask_id)
             for channel_id, challenge_channel in tqdm(
                 challenge_channels.items(), desc="Channels", leave=False
             ):
