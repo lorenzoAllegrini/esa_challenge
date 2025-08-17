@@ -339,8 +339,8 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                         challenge_channel, channel_id, mask_id=mask_id
                     )
                 
-                except RuntimeError:
-                    continue
+                except RuntimeError as e:
+                    raise RuntimeError(f"errore channel specific ensemble: {e}")
                 if mask_id not in mask_dfs:
                     mask_dfs[mask_id] = df_ch[["start", "end"]].copy()
                 for col in [c for c in df_ch.columns if c not in {"start", "end"}]:
