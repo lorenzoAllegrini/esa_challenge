@@ -357,6 +357,9 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             channel_cv = pd.read_csv(
                 os.path.join(self.artifacts_dir, f"cv_scores_fold{mask_id}.csv")
             )
+            channel_cv_set = {}
+            for row in channel_cv.iterrows():
+                channel_cv_set[row["channel"]] = row["cv_score"]
             rename_map = {
                 c: c.rsplit("_", 1)[0]
                 for c in df_mask.columns
@@ -364,11 +367,14 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             }
             df_renamed = df_mask.rename(columns=rename_map)
             df_aug = self.add_group_activation(
-                df_renamed, groups, channel_cv, gamma=gamma, delta=delta, beta=beta
+                df_renamed, groups, channel_cv_set, gamma=gamma, delta=delta, beta=beta
             )
+            df_aug.to_csv("df_aug.csv")
             X = df_aug[[c for c in df_aug.columns if c.startswith("group_")]]
             for mdl in self.event_models_by_mask.get(mask_id, []):
+                print(mdl)
                 p = mdl.predict_proba(X)
+                print(p)
                 if p.shape[1] == 1:
                     single = mdl.classes_[0]
                     p = np.full(len(X), 1.0 if single == 1 else 0.0)

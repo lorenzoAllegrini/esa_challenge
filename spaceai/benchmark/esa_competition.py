@@ -149,6 +149,7 @@ class ESACompetitionBenchmark(Benchmark):
         out = pd.DataFrame(index=df.index)
         min_val = 1e-6
         beta = max(0.0, min(beta, 1.0))  # mantieni β in [0,1]
+        print(cv_score)
 
         for gid, ch_list in group_map.items():
             chs = [c for c in ch_list if c in df.columns and c.startswith("channel_")]
@@ -162,14 +163,16 @@ class ESACompetitionBenchmark(Benchmark):
 
             # matrice probabilità
             P = df[chs].to_numpy()
-
+            print(f"w: {w}")
+          
             # delta solo se p>0.5, clamp finale a 1.0
             P_adj = np.minimum(P + (P > 0.5) * delta, 1.0)
-
+            #print(f"P_adj: {P_adj}")
             # F = (P_adj)^gamma   (θ rimosso)
             F = P_adj**gamma
 
             contrib = F * w  # contributi pesati
+         
             max_val = contrib.max(axis=1)
             bonus = (contrib.sum(axis=1) - max_val) * beta
 
@@ -908,7 +911,7 @@ class ESACompetitionBenchmark(Benchmark):
         os.makedirs(model_dir, exist_ok=True)
         model_path = os.path.join(model_dir, f"event_wise_{run_id}.pkl")
         joblib.dump(best_estimator, model_path)
-
+        print(f"best_estimator: {best_estimator}, best score: {best_score}")
         return best_estimator, best_score
 
     def create_sliding_sequences(self, df, feature_cols, seq_len, for_crf=True):

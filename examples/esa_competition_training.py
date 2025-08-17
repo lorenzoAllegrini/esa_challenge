@@ -199,7 +199,7 @@ def main():
         search_cv_factory=search_cv_factory,
         search_cv_factory2=search_cv_factory2,
         search_cv_factory3=search_cv_factory2,
-        skip_channel_training=False,
+        skip_channel_training=True,
         final_estimators=2
         
     )
