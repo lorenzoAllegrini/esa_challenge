@@ -349,7 +349,8 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 mask_dfs[mask_id].to_csv("mask_dfs")
 
         if not mask_dfs:
-            raise RuntimeError("No channels asdffsdafdssafdsdsfadfsasfafsed")
+            print("No channels asdffsdafdssafdsdsfadfsasfafsed")
+            continue
 
         fold_probas = []
         challenge_df: Optional[pd.DataFrame] = None
