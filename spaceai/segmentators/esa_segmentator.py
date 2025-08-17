@@ -6,7 +6,6 @@ import ast
 import math
 import random 
 import itertools
-from sktime.transformations.panel.rocket import Rocket
 from scipy.stats import kurtosis, skew
 
 from spaceai.segmentators.functions import (
@@ -36,7 +35,6 @@ import ast
 import math
 import random 
 import itertools
-from sktime.transformations.panel.rocket import Rocket
 from spaceai.data.esa import ESA
 from scipy.stats import kurtosis, skew
 

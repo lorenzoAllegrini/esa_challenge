@@ -10,6 +10,5 @@ scikit-learn==1.5.1
 # stable release that works with NumPy 2.x to avoid the runtime
 # ValueError raised during `scipy.special` import.
 scipy==1.14.1
-sktime==0.38.3
 torch==2.4.1
 tqdm==4.66.5

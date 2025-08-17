@@ -20,7 +20,7 @@ from scipy.stats import (
     kurtosis,
     skew,
 )
-from sktime.transformations.panel.rocket import Rocket
+
 
 from spaceai.data.esa import ESA
 from spaceai.segmentators.cython_functions import (

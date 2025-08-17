@@ -623,7 +623,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             os.makedirs(feat_dir, exist_ok=True)
             mask_run_id = self.make_run_id([tuple(mask1)])
             if skip_channel_training:
-                cv_csv = os.path.join(feat_dir, f"cv_scores_fold{fold_idx:02d}.csv")
+                cv_csv = os.path.join(feat_dir, f"cv_scores_fold{mask_run_id}.csv")
                 df_cv = pd.read_csv(cv_csv)
                 channel_cv = dict(zip(df_cv["channel"], df_cv["cv_score"]))
                 global_train_csv = os.path.join(feat_dir, f"train_ensemble_probas_{mask_run_id}.csv")

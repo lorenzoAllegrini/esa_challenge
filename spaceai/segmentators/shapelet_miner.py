@@ -10,8 +10,6 @@ from typing import (
 import numpy as np
 import pandas as pd
 from numba import prange
-from sktime.transformations.base import BaseTransformer
-from sktime.transformations.panel.rocket import Rocket
 
 from spaceai.data import ESA
 
@@ -353,7 +351,7 @@ class ShapeletMiner:
             get_num_threads,
             set_num_threads,
         )
-        from sktime.transformations.panel.rocket._rocket_numba import _apply_kernels
+       
 
         from spaceai.segmentators.cython_functions import _apply_kernels2
 

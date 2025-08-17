@@ -7,8 +7,7 @@ import numpy as np
 import pandas as pd
 from numba import prange
 from sklearn.cluster import KMeans
-from sktime.transformations.base import BaseTransformer
-from sktime.transformations.panel.rocket import Rocket
+
 
 
 def extract_kernels_from_data(
@@ -150,7 +149,7 @@ class ShapeletMiner:
             get_num_threads,
             set_num_threads,
         )
-        from sktime.transformations.panel.rocket._rocket_numba import _apply_kernels
+      
 
         from spaceai.segmentators.cython_functions import _apply_kernels2
 

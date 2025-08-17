@@ -24,15 +24,7 @@ from spaceai.segmentators.shapelet_miner import ShapeletMiner
 from spaceai.utils.callbacks import SystemMonitorCallback
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.pipeline import Pipeline
-
-
-def kernel_column_selector(X):
-    return [
-        c
-        for c in X.columns
-        if (c.startswith("max_kernel") and c.endswith("max_convolution"))
-        or (c.startswith("min_kernel") and c.endswith("min_convolution"))
-    ]
+from spaceai.utils.tools import kernel_column_selector
 
 def make_logistic_search_cv(pipeline, space, scorer):
     return BayesSearchCV(

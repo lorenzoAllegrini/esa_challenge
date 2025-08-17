@@ -327,8 +327,11 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 challenge_parquet=test_parquet,
                 download=False,
             )
-
+        first = True
         for mask_id in tqdm(mask_ids, desc="Masks"):
+            if first:
+                first=False
+                continue
             for channel_id, challenge_channel in tqdm(
                 challenge_channels.items(), desc="Channels", leave=False
             ):
@@ -375,7 +378,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             if challenge_df is None:
                 challenge_df = df_mask
 
-        final_probas = np.max(fold_probas, axis=0) - np.var(fold_probas, axis=0)
+        final_probas = np.max(fold_probas, axis=0) #- np.var(fold_probas, axis=0)
         y_full, y_binary = self.predict_challenge_labels(
             challenge_test=(
                 challenge_df
