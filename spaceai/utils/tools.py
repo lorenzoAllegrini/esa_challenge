@@ -209,3 +209,11 @@ def generate_kfold_masks(
         end = start + mask_len
         masks.append((start, end))
     return masks
+
+def kernel_column_selector(X):
+    return [
+        c
+        for c in X.columns
+        if (c.startswith("max_kernel") and c.endswith("max_convolution"))
+        or (c.startswith("min_kernel") and c.endswith("min_convolution"))
+    ]

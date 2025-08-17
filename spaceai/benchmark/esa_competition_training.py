@@ -615,8 +615,8 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
             rng=self.rng,
         )
         for fold_idx, mask1 in enumerate(masks1):
-            if fold_idx == 0:
-                continue
+            #if fold_idx == 0:
+                #continue
             fold_handler = CallbackHandler([SystemMonitorCallback()], call_every_ms)
             fold_handler.start()
             feat_dir = os.path.join(self.exp_dir, self.run_id)
@@ -632,7 +632,7 @@ class ESACompetitionTraining(ESACompetitionBenchmark):
                 final_train = None
                 channel_cv = {}
                 for channel_id in mission.target_channels:
-                    if int(channel_id.split("_")[1]) < 41:
+                    if int(channel_id.split("_")[1]) < 11:
                         continue
                      
                     train_channel, _ = self.load_channel(mission, channel_id, overlapping_train=True)

@@ -156,7 +156,7 @@ def main():
         "classifier__max_depth": Integer(6, 9),
         "classifier__learning_rate": Real(0.001, 0.01),
         "classifier__min_child_weight": Integer(1, 3),
-        "classifier__subsample": Real(0.6,1-0),
+        "classifier__subsample": Real(0.6,1.0),
         "classifier__colsamplebytree": Real(0.6,1.0),
     }
     xgb_scorer = make_scorer(partial(esa_scorer, benchmark=benchmark), greater_is_better=True)

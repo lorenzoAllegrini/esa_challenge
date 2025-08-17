@@ -312,7 +312,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
 
         challenge_channels: Dict[str, ESA] = {}
         for channel_id in mission.target_channels:
-            if int(channel_id.split("_")[1]) < 41:
+            if int(channel_id.split("_")[1]) < 11:
                 continue
             challenge_channels[channel_id] = ESA(
                 root=self.data_root,
@@ -336,12 +336,14 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                     df_ch = self.channel_specific_ensemble(
                         challenge_channel, channel_id, mask_id=mask_id
                     )
+                
                 except RuntimeError:
                     continue
                 if mask_id not in mask_dfs:
                     mask_dfs[mask_id] = df_ch[["start", "end"]].copy()
                 for col in [c for c in df_ch.columns if c not in {"start", "end"}]:
                     mask_dfs[mask_id][col] = df_ch[col]
+                mask_dfs[mask_id].to_csv("mask_dfs")
 
         if not mask_dfs:
             raise RuntimeError("No channels processed")
