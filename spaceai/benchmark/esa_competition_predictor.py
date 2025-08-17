@@ -66,10 +66,9 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         model_base = os.path.join(self.artifacts_dir, "models")
 
         files = glob.glob(model_base, recursive=True)
-        print(f"files: {files}")
-        print(model_base)
+
         for ch_dir in glob.glob(os.path.join(model_base, "channel_*")):
-            print(ch_dir)
+
             base = os.path.basename(ch_dir)
             ch_id = base[len("channel_") :]
 
@@ -100,7 +99,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 self.channel_links[ch_id] = links_data
 
             for p in glob.glob(os.path.join(ch_dir, "internal_*.pkl")):
-                print(p)
+  
                 mid = os.path.splitext(os.path.basename(p))[0]
                 if allowed_internal is not None and mid not in allowed_internal:
                     continue
@@ -131,9 +130,9 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
 
             # print(self.meta_models["channel_12"].keys())
         self.event_models_by_mask = defaultdict(list)
-        print(glob.glob(os.path.join(model_base, "event_wise_*.pkl")))
+   
         for p in glob.glob(os.path.join(model_base, "event_wise_*.pkl")):
-            print(p)
+       
             mask_id = os.path.splitext(os.path.basename(p))[0].split("event_wise_")[1]
             model = joblib.load(p)
             self.event_models.append(model)
@@ -298,7 +297,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         )
 
         mask_ids = sorted(self.event_models_by_mask.keys())
-        print(mask_ids)
+   
         mask_dfs: Dict[str, pd.DataFrame] = {}
 
         # Load cross-validation scores saved during training. Multiple folds
@@ -313,7 +312,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
 
         challenge_channels: Dict[str, ESA] = {}
         for channel_id in mission.target_channels:
-            print(channel_id)
+
             if int(channel_id.split("_")[1]) < 11:
                 continue
             challenge_channels[channel_id] = ESA(
@@ -332,7 +331,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         if len(mask_ids) == 0:
             raise RuntimeError("len 0")
         for mask_id in tqdm(mask_ids, desc="Masks"):
-            print(mask_id)
+         
             for channel_id, challenge_channel in tqdm(
                 challenge_channels.items(), desc="Channels", leave=False
             ):
@@ -350,8 +349,8 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 mask_dfs[mask_id].to_csv("mask_dfs")
 
         if not mask_dfs:
-            print("No channels asdffsdafdssafdsdsfadfsasfafsed")
-            return 0
+            raise RuntimeError("No channels processed")
+            
 
         fold_probas = []
         challenge_df: Optional[pd.DataFrame] = None
@@ -374,9 +373,9 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             df_aug.to_csv("df_aug.csv")
             X = df_aug[[c for c in df_aug.columns if c.startswith("group_")]]
             for mdl in self.event_models_by_mask.get(mask_id, []):
-                print(mdl)
+             
                 p = mdl.predict_proba(X)
-                print(p)
+            
                 if p.shape[1] == 1:
                     single = mdl.classes_[0]
                     p = np.full(len(X), 1.0 if single == 1 else 0.0)
