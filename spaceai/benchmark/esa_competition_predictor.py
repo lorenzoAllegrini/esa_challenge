@@ -67,9 +67,9 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
 
         files = glob.glob(model_base, recursive=True)
         print(f"files: {files}")
-        print("siummm")
+        print(model_base)
         for ch_dir in glob.glob(os.path.join(model_base, "channel_*")):
-
+            print(ch_dir)
             base = os.path.basename(ch_dir)
             ch_id = base[len("channel_") :]
 
