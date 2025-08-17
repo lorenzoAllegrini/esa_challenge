@@ -328,7 +328,8 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 challenge_parquet=test_parquet,
                 download=False,
             )
-
+        if len(mask_ids) == 0:
+            raise RuntimeError("len 0")
         for mask_id in tqdm(mask_ids, desc="Masks"):
             print(mask_id)
             for channel_id, challenge_channel in tqdm(
