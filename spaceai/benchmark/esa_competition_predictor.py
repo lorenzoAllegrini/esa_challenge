@@ -350,7 +350,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
 
         if not mask_dfs:
             print("No channels asdffsdafdssafdsdsfadfsasfafsed")
-            continue
+            return 0
 
         fold_probas = []
         challenge_df: Optional[pd.DataFrame] = None
