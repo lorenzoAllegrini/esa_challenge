@@ -67,7 +67,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
 
         files = glob.glob(model_base, recursive=True)
         print(f"files: {files}")
-
+        print("siummm")
         for ch_dir in glob.glob(os.path.join(model_base, "channel_*")):
 
             base = os.path.basename(ch_dir)
@@ -130,7 +130,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
 
             # print(self.meta_models["channel_12"].keys())
         self.event_models_by_mask = defaultdict(list)
-        print(os.path.join(model_base, "event_wise_*.pkl"))
+        
         for p in glob.glob(os.path.join(model_base, "event_wise_*.pkl")):
             print(p)
             mask_id = os.path.splitext(os.path.basename(p))[0].split("event_wise_")[1]
