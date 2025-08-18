@@ -234,14 +234,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                     columns=["event", "start", "end"], errors="ignore"
                 )
 
-                try:
-                    p = mdl.predict_proba(df_curr)
-                except ValueError as e:
-                    from sklearn.dummy import DummyClassifier
-                    print(f"ValueError: {e}")
-                    dummy = DummyClassifier(strategy="constant", constant=0)
-                    dummy.fit([[0]], [0])
-                    p = dummy.predict_proba(df_curr)
+                p = mdl.model.predict_proba(df_curr)
 
                 if p.shape[1] == 1:
                     cls = mdl.model.classes_[0]
@@ -384,7 +377,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             X = df_aug[[c for c in df_aug.columns if c.startswith("group_")]]
             for mdl in self.event_models_by_mask.get(mask_id, []):
                 try:
-                    p = mdl.predict_proba(X)
+                    p = mdl.model.predict_proba(X)
                 except ValueError as e:
                     from sklearn.dummy import DummyClassifier
                     print(f"ValueError: {e}")
