@@ -1,0 +1,152 @@
+{
+  "external_f72d883c": {
+    "mask_id": "68bc3433",
+    "internal_ids": [
+      "internal_3a290e42",
+      "internal_5b607dac",
+      "internal_32269287",
+      "internal_32802d75",
+      "internal_db97cca4"
+    ]
+  },
+  "external_3a3fca46": {
+    "mask_id": "68bc3433",
+    "internal_ids": [
+      "internal_b562a6b8",
+      "internal_fda44421",
+      "internal_e45576af",
+      "internal_ed843b7b",
+      "internal_5509a738"
+    ]
+  },
+  "external_3047baaf": {
+    "mask_id": "68bc3433",
+    "internal_ids": [
+      "internal_03e7b99a",
+      "internal_781640e8",
+      "internal_e8fe6645",
+      "internal_6c3e66ef",
+      "internal_963705d8"
+    ]
+  },
+  "external_c95983a1": {
+    "mask_id": "aa59c2f1",
+    "internal_ids": [
+      "internal_f9bb2253",
+      "internal_31906c5b",
+      "internal_0ef775c1",
+      "internal_729cdc8f",
+      "internal_0c4f03da"
+    ]
+  },
+  "external_24b85819": {
+    "mask_id": "aa59c2f1",
+    "internal_ids": [
+      "internal_515b157c",
+      "internal_60e1f6f2",
+      "internal_8f09fe92",
+      "internal_e809fb8d",
+      "internal_333620d5"
+    ]
+  },
+  "external_fb09c7d4": {
+    "mask_id": "aa59c2f1",
+    "internal_ids": [
+      "internal_4ba542a4",
+      "internal_572559f5",
+      "internal_fb7a91dc",
+      "internal_84a2ef61",
+      "internal_ee9c96ed"
+    ]
+  },
+  "external_4a8dc12a": {
+    "mask_id": "d00245a5",
+    "internal_ids": [
+      "internal_3d813e53",
+      "internal_4997ab93",
+      "internal_d6e76f69",
+      "internal_193bac4a",
+      "internal_9bf93620"
+    ]
+  },
+  "external_40df2644": {
+    "mask_id": "d00245a5",
+    "internal_ids": [
+      "internal_58eb467d",
+      "internal_a69af046",
+      "internal_93669b8d",
+      "internal_3df900ad",
+      "internal_eb6d3098"
+    ]
+  },
+  "external_7abd8f33": {
+    "mask_id": "d00245a5",
+    "internal_ids": [
+      "internal_2785a6f5",
+      "internal_00eda710",
+      "internal_a9a42935",
+      "internal_e3bcd3d1",
+      "internal_c4a2912f"
+    ]
+  },
+  "external_8762d58e": {
+    "mask_id": "4ee88a35",
+    "internal_ids": [
+      "internal_0047194d",
+      "internal_44921a18",
+      "internal_19a70587",
+      "internal_d0571718",
+      "internal_ee519be4"
+    ]
+  },
+  "external_d1d43eb1": {
+    "mask_id": "4ee88a35",
+    "internal_ids": [
+      "internal_9a88d775",
+      "internal_c993e929",
+      "internal_d021b6ac",
+      "internal_2241f75f",
+      "internal_acdb2cff"
+    ]
+  },
+  "external_6c6ce91d": {
+    "mask_id": "4ee88a35",
+    "internal_ids": [
+      "internal_0237dd8b",
+      "internal_ea4edf8d",
+      "internal_a8c32517",
+      "internal_5497d6ff",
+      "internal_19cc5ba8"
+    ]
+  },
+  "external_02eb29aa": {
+    "mask_id": "03a006ec",
+    "internal_ids": [
+      "internal_af9b4490",
+      "internal_64fa2526",
+      "internal_b5ab0822",
+      "internal_5c4084d7",
+      "internal_c71b12a9"
+    ]
+  },
+  "external_e0f909d3": {
+    "mask_id": "03a006ec",
+    "internal_ids": [
+      "internal_010e0f41",
+      "internal_b2a45bc5",
+      "internal_00d2127f",
+      "internal_fd16a916",
+      "internal_68406ec2"
+    ]
+  },
+  "external_e6df0034": {
+    "mask_id": "03a006ec",
+    "internal_ids": [
+      "internal_3750625f",
+      "internal_13d566fd",
+      "internal_d057d068",
+      "internal_54f03c5b",
+      "internal_cc82734d"
+    ]
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "external_3047baaf": {
+    "mask_id": "68bc3433",
+    "internal_ids": [
+      "internal_781640e8",
+      "internal_2e41391f",
+      "internal_03e7b99a",
+      "internal_e8fe6645",
+      "internal_60e99aa8"
+    ]
+  },
+  "external_f72d883c": {
+    "mask_id": "68bc3433",
+    "internal_ids": [
+      "internal_5b607dac",
+      "internal_3fcd0a5a",
+      "internal_3a290e42",
+      "internal_32269287",
+      "internal_b97682f1"
+    ]
+  },
+  "external_485bddfb": {
+    "mask_id": "68bc3433",
+    "internal_ids": [
+      "internal_9700e78f",
+      "internal_e6052073",
+      "internal_4cd3e266",
+      "internal_421a26b6",
+      "internal_844e4a5c"
+    ]
+  },
+  "external_c95983a1": {
+    "mask_id": "4ee88a35",
+    "internal_ids": [
+      "internal_31906c5b",
+      "internal_681d137f",
+      "internal_912dd329",
+      "internal_0ef775c1",
+      "internal_6adbdedb"
+    ]
+  },
+  "external_24b85819": {
+    "mask_id": "aa59c2f1",
+    "internal_ids": [
+      "internal_60e1f6f2",
+      "internal_600b9ce7",
+      "internal_2cf8c71f",
+      "internal_8f09fe92",
+      "internal_c05a6a1f"
+    ]
+  },
+  "external_7abd8f33": {
+    "mask_id": "d00245a5",
+    "internal_ids": [
+      "internal_e3bcd3d1",
+      "internal_a9a42935",
+      "internal_c4a2912f",
+      "internal_2c429132",
+      "internal_2785a6f5"
+    ]
+  },
+  "external_4a8dc12a": {
+    "mask_id": "d00245a5",
+    "internal_ids": [
+      "internal_193bac4a",
+      "internal_d6e76f69",
+      "internal_9bf93620",
+      "internal_fd8085cf",
+      "internal_3d813e53"
+    ]
+  },
+  "external_8762d58e": {
+    "mask_id": "4ee88a35",
+    "internal_ids": [
+      "internal_de0cc2d7",
+      "internal_2f72319e",
+      "internal_d8640532",
+      "internal_cb1d1183",
+      "internal_acd76995"
+    ]
+  },
+  "external_40df2644": {
+    "mask_id": "4ee88a35",
+    "internal_ids": [
+      "internal_3df900ad",
+      "internal_93669b8d",
+      "internal_eb6d3098",
+      "internal_101d89a0",
+      "internal_58eb467d"
+    ]
+  }
+}

@@ -335,18 +335,15 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             raise RuntimeError("len 0")
 
         for mask_id in tqdm(mask_ids, desc="Masks"):
-            first = True
+          
             for channel_id, challenge_channel in tqdm(
                 challenge_channels.items(), desc="Channels", leave=False
             ):
                 try:
-                    if first:
                         df_ch = self.channel_specific_ensemble(
                             challenge_channel, channel_id, mask_id=mask_id
                         )
-                        first = False
-                    else:
-                        df_ch = df_ch.copy()
+
                 
                 except RuntimeError as e:
                     raise RuntimeError(f"errore channel specific ensemble: {e}")

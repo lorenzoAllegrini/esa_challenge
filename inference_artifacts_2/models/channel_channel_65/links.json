@@ -1,0 +1,122 @@
+{
+  "external_cddb039a": {
+    "mask_id": "68bc3433",
+    "internal_ids": [
+      "internal_5977f03f",
+      "internal_1db6e33c",
+      "internal_060122dc",
+      "internal_20c0459d",
+      "internal_455c1c7c"
+    ]
+  },
+  "external_b215329f": {
+    "mask_id": "68bc3433",
+    "internal_ids": [
+      "internal_1f4abf2e",
+      "internal_67aa3f70",
+      "internal_3575431a",
+      "internal_43d15971",
+      "internal_54dca66a"
+    ]
+  },
+  "external_507b02e7": {
+    "mask_id": "68bc3433",
+    "internal_ids": [
+      "internal_82490458",
+      "internal_c649b2ad",
+      "internal_fce40c07",
+      "internal_2c68c619",
+      "internal_dade02c3"
+    ]
+  },
+  "external_4125f4d7": {
+    "mask_id": "aa59c2f1",
+    "internal_ids": [
+      "internal_face0ae8",
+      "internal_442437ed",
+      "internal_b7b6aea9",
+      "internal_86e7d985",
+      "internal_87325901"
+    ]
+  },
+  "external_e703c505": {
+    "mask_id": "aa59c2f1",
+    "internal_ids": [
+      "internal_6629ab48",
+      "internal_015fd88e",
+      "internal_f54c8197",
+      "internal_7166435d",
+      "internal_04196e5a"
+    ]
+  },
+  "external_ea5c77f3": {
+    "mask_id": "aa59c2f1",
+    "internal_ids": [
+      "internal_92fcde73",
+      "internal_e3e023c4",
+      "internal_f036903a",
+      "internal_612593ac",
+      "internal_f8ff400b"
+    ]
+  },
+  "external_989755a7": {
+    "mask_id": "d00245a5",
+    "internal_ids": [
+      "internal_eda77632",
+      "internal_b6ac8337",
+      "internal_68a1cc35",
+      "internal_aa62d2a8",
+      "internal_8d233b08"
+    ]
+  },
+  "external_1da6181f": {
+    "mask_id": "d00245a5",
+    "internal_ids": [
+      "internal_7e3f6e64",
+      "internal_4b5a5da3",
+      "internal_a0c6d828",
+      "internal_c0450cd9",
+      "internal_b6671982"
+    ]
+  },
+  "external_d1afabe5": {
+    "mask_id": "d00245a5",
+    "internal_ids": [
+      "internal_ec733bc4",
+      "internal_e0bc4c71",
+      "internal_f90e6045",
+      "internal_676d01b5",
+      "internal_574a1bbe"
+    ]
+  },
+  "external_898b73aa": {
+    "mask_id": "4ee88a35",
+    "internal_ids": [
+      "internal_391dcb28",
+      "internal_e2c213af",
+      "internal_4b860d04",
+      "internal_45992e68",
+      "internal_57bc510f"
+    ]
+  },
+  "external_72d7a380": {
+    "mask_id": "4ee88a35",
+    "internal_ids": [
+      "internal_80ffa760",
+      "internal_ec6429f7",
+      "internal_842be2d7",
+      "internal_76fac274",
+      "internal_2863c613"
+    ]
+  },
+  "external_a3afe4d3": {
+    "mask_id": "4ee88a35",
+    "internal_ids": [
+      "internal_c12f0d30",
+      "internal_b92415e0",
+      "internal_659999a6",
+      "internal_08f7eaae",
+      "internal_4df6f62a"
+    ]
+  }
+}
