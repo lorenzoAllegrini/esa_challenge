@@ -234,7 +234,14 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                     columns=["event", "start", "end"], errors="ignore"
                 )
 
-                p = mdl.model.predict_proba(df_curr)
+                try:
+                    p = mdl.predict_proba(df_curr)
+                except ValueError as e:
+                    from sklearn.dummy import DummyClassifier
+                    print(f"ValueError: {e}")
+                    dummy = DummyClassifier(strategy="constant", constant=0)
+                    dummy.fit([[0]], [0])
+                    p = dummy.predict_proba(df_curr)
 
                 if p.shape[1] == 1:
                     cls = mdl.model.classes_[0]
@@ -340,11 +347,9 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                 challenge_channels.items(), desc="Channels", leave=False
             ):
                 try:
-                        df_ch = self.channel_specific_ensemble(
-                            challenge_channel, channel_id, mask_id=mask_id
-                        )
-
-                
+                    df_ch = self.channel_specific_ensemble(
+                        challenge_channel, channel_id, mask_id=mask_id
+                    )
                 except RuntimeError as e:
                     raise RuntimeError(f"errore channel specific ensemble: {e}")
                 if mask_id not in mask_dfs:
@@ -378,8 +383,14 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             #df_aug.to_csv("df_aug.csv")
             X = df_aug[[c for c in df_aug.columns if c.startswith("group_")]]
             for mdl in self.event_models_by_mask.get(mask_id, []):
-             
-                p = mdl.predict_proba(X)
+                try:
+                    p = mdl.predict_proba(X)
+                except ValueError as e:
+                    from sklearn.dummy import DummyClassifier
+                    print(f"ValueError: {e}")
+                    dummy = DummyClassifier(strategy="constant", constant=0)
+                    dummy.fit([[0]], [0])
+                    p = dummy.predict_proba(X)
             
                 if p.shape[1] == 1:
                     single = mdl.classes_[0]
