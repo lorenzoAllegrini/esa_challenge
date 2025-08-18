@@ -344,6 +344,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                         df_ch = self.channel_specific_ensemble(
                             challenge_channel, channel_id, mask_id=mask_id
                         )
+                        first = False
                     else:
                         df_ch = np.array([0.0 for _ in range(len(df_ch))])
                 
