@@ -350,7 +350,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                     mask_dfs[mask_id] = df_ch[["start", "end"]].copy()
                 for col in [c for c in df_ch.columns if c not in {"start", "end"}]:
                     mask_dfs[mask_id][col] = df_ch[col]
-                mask_dfs[mask_id].to_csv("mask_dfs")
+                #mask_dfs[mask_id].to_csv("mask_dfs")
 
         if not mask_dfs:
             raise RuntimeError("No channels processed")
@@ -374,7 +374,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             df_aug = self.add_group_activation(
                 df_renamed, groups, channel_cv_set, gamma=gamma, delta=delta, beta=beta
             )
-            df_aug.to_csv("df_aug.csv")
+            #df_aug.to_csv("df_aug.csv")
             X = df_aug[[c for c in df_aug.columns if c.startswith("group_")]]
             for mdl in self.event_models_by_mask.get(mask_id, []):
              
@@ -418,4 +418,4 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         if mission is None:
             mission = ESAMissions.MISSION_1.value
         df = self.run(mission, test_parquet=test_parquet)
-        df.to_csv(output, index=False)
+        #df.to_csv(output, index=False)
