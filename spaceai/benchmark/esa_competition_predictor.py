@@ -346,7 +346,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
                         )
                         first = False
                     else:
-                        df_ch = np.array([0.0 for _ in range(len(df_ch))])
+                        df_ch = df_ch.copy()
                 
                 except RuntimeError as e:
                     raise RuntimeError(f"errore channel specific ensemble: {e}")
