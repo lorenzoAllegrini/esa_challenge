@@ -403,8 +403,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         return pd.DataFrame(
             {
                 "id": np.arange(len(y_full)) + self.id_offset,
-                "is_anomaly": y_full,
-                "pred_binary": y_binary,
+                "is_anomaly": y_binary,
             }
         )
 

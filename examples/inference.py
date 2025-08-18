@@ -58,8 +58,8 @@ def main():
 
     predictor = ESACompetitionPredictor(args.artifacts_dir, segmentator)
     predictor.load_models()
-    predictor.predict(args.test_parquet, args.output)
-
+    res = predictor.predict(args.test_parquet, args.output)
+    res.to_csv("submission2.csv")
 
 if __name__ == "__main__":
     main()

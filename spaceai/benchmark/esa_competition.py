@@ -158,7 +158,7 @@ class ESACompetitionBenchmark(Benchmark):
 
             # pesi dai cv-score
             w = (
-                np.array([cv_score.get(c, 0.0) for c in chs], dtype=float) + eps
+                np.array([cv_score.get(c, 1.0) for c in chs], dtype=float) + eps
             ) ** alpha
 
             # matrice probabilità
