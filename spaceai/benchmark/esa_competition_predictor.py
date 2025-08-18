@@ -419,3 +419,4 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             mission = ESAMissions.MISSION_1.value
         df = self.run(mission, test_parquet=test_parquet)
         #df.to_csv(output, index=False)
+        return df
