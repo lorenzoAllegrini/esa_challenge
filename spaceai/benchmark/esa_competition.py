@@ -379,8 +379,8 @@ class ESACompetitionBenchmark(Benchmark):
         labels_df = pd.DataFrame(
             {
                 "id": np.arange(len(y_full)) + self.id_offset,
-                "is_anomaly": y_full,
-                "pred_binary": y_binary,
+                "is_anomaly": y_binary,
+                
             }
         )
         y_full, y_binary = self.predict_challenge_labels2(
@@ -940,7 +940,7 @@ class ESACompetitionBenchmark(Benchmark):
         self,
         challenge_test: pd.DataFrame,
         challenge_probas: Any,
-        peak_height: float = 0.4,
+        peak_height: float = 0.5,
         buffer_size: int = 400,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -977,12 +977,12 @@ class ESACompetitionBenchmark(Benchmark):
             y_binary[a : b + 1] = 1
 
         ids = np.arange(T) + self.id_offset
-        pd.DataFrame({"id": ids, "is_anomaly": y_full}).to_csv(
-            os.path.join(self.run_dir, "predicted_proba_labels.csv"), index=False
-        )
-        pd.DataFrame({"id": ids, "pred_binary": y_binary}).to_csv(
-            os.path.join(self.run_dir, "predicted_binary_labels.csv"), index=False
-        )
+        #pd.DataFrame({"id": ids, "is_anomaly": y_full}).to_csv(
+         #   os.path.join(self.run_dir, "predicted_proba_labels.csv"), index=False
+        #)
+        #pd.DataFrame({"id": ids, "pred_binary": y_binary}).to_csv(
+         #   os.path.join(self.run_dir, "predicted_binary_labels.csv"), index=False
+        #)
 
         return y_full, y_binary
 
