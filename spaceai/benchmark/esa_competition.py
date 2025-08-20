@@ -942,6 +942,7 @@ class ESACompetitionBenchmark(Benchmark):
         challenge_probas: Any,
         peak_height: float = 0.5,
         buffer_size: int = 400,
+        series_length: Optional[int] = None
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Applica il modello segment‐wise a challenge_test, ricostruisce
@@ -954,9 +955,11 @@ class ESACompetitionBenchmark(Benchmark):
         Returns:
             y_full (float proba), y_binary (0/1)
         """
-
-        max_idx = int(challenge_test["end"].max())
-        T = max_idx + 40
+        if not series_length:
+            max_idx = int(challenge_test["end"].max())
+            T = max_idx + 40
+        else:
+            T = series_length
         sum_p = np.zeros(T, float)
         cnt = np.zeros(T, int)
 
@@ -977,12 +980,7 @@ class ESACompetitionBenchmark(Benchmark):
             y_binary[a : b + 1] = 1
 
         ids = np.arange(T) + self.id_offset
-        #pd.DataFrame({"id": ids, "is_anomaly": y_full}).to_csv(
-         #   os.path.join(self.run_dir, "predicted_proba_labels.csv"), index=False
-        #)
-        #pd.DataFrame({"id": ids, "pred_binary": y_binary}).to_csv(
-         #   os.path.join(self.run_dir, "predicted_binary_labels.csv"), index=False
-        #)
+
 
         return y_full, y_binary
 

@@ -404,6 +404,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             challenge_probas=final_probas,
             peak_height=peak_height,
             buffer_size=buffer_size,
+            series_length = len(challenge_channels["channel_12"])
         )
         return pd.DataFrame(
             {
