@@ -377,7 +377,7 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             X = df_aug[[c for c in df_aug.columns if c.startswith("group_")]]
             for mdl in self.event_models_by_mask.get(mask_id, []):
                 try:
-                    p = mdl.model.predict_proba(X)
+                    p = mdl.predict_proba(X)
                 except ValueError as e:
                     from sklearn.dummy import DummyClassifier
                     print(f"ValueError: {e}")
@@ -422,5 +422,5 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
         if mission is None:
             mission = ESAMissions.MISSION_1.value
         df = self.run(mission, test_parquet=test_parquet)
-        #df.to_csv(output, index=False)
+      
         return df
