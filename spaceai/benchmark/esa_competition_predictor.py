@@ -341,13 +341,11 @@ class ESACompetitionPredictor(ESACompetitionBenchmark):
             ):
                 
                 try:
-                    if first:
-                        df_ch = self.channel_specific_ensemble(
-                            challenge_channel, channel_id, mask_id=mask_id
-                        )
-                        first = False
-                    else: 
-                        df_ch[f"{channel_id}_{mask_id}"] = df_ch[f"channel_12_{mask_id}"]
+                  
+                    df_ch = self.channel_specific_ensemble(
+                        challenge_channel, channel_id, mask_id=mask_id
+                    )
+
 
                 except RuntimeError as e:
                     raise RuntimeError(f"errore channel specific ensemble: {e}")
