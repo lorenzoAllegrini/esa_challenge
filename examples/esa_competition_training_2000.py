@@ -65,7 +65,7 @@ def esa_scorer(y_val, y_pred, benchmark):
 
 def main():
     parser = argparse.ArgumentParser(description="ESA competition training")
-    parser.add_argument("--run-id", default="esa_training")
+    parser.add_argument("--run-id", default="esa_training_2000")
     parser.add_argument("--exp-dir", default="experiments")
     parser.add_argument("--data-root", default="datasets")
     args = parser.parse_args()
@@ -80,7 +80,7 @@ def main():
         num_kernels=num_kernels,
         segment_duration=segment_duration,
         step_duration=step_duration,
-        run_id="esa_training", 
+        run_id="esa_training_2000", 
         exp_dir="experiments",
         skip=False
     )
@@ -94,7 +94,7 @@ def main():
         pooling_segment_len=5,
         pooling_segment_stride=1,
         poolings=["max", "min"],
-        run_id="esa_training", 
+        run_id="esa_training_2000", 
         exp_dir="experiments", 
         use_shapelets=True
     )
@@ -149,7 +149,7 @@ def main():
         "classifier__learning_rate": Real(0.001, 0.01),
         "classifier__min_child_weight": Integer(1, 3),
         "classifier__subsample": Real(0.6,1.0),
-        "classifier__colsamplebytree": Real(0.6,1.0),
+        "classifier__colsample_bytree": Real(0.6,1.0),
     }
     xgb_scorer = make_scorer(partial(esa_scorer, benchmark=benchmark), greater_is_better=True)
     

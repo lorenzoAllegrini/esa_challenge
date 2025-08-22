@@ -48,7 +48,7 @@ def make_xgb_search_cv(pipeline, space, scorer):
         cv=TimeSeriesSplit(n_splits=3),
         verbose=0,
         n_jobs=-1,
-        n_iter=40,
+        n_iter=50,
         error_score=0.0
     )
 
@@ -141,6 +141,8 @@ def main():
         "classifier__max_depth": Integer(6, 9),
         "classifier__learning_rate": Real(0.001, 0.01),
         "classifier__min_child_weight": Integer(1, 3),
+        "classifier__subsample": Real(0.5, 1.0),          # campionamento dei dati
+        "classifier__colsample_bytree": Real(0.5, 1.0),   # campionamento delle feature
     }
     xgb_scorer = make_scorer(partial(esa_scorer, benchmark=benchmark), greater_is_better=True)
     
@@ -199,7 +201,7 @@ def main():
         search_cv_factory=search_cv_factory,
         search_cv_factory2=search_cv_factory2,
         search_cv_factory3=search_cv_factory2,
-        skip_channel_training=True,
+        skip_channel_training=False,
         final_estimators=2,
     )
 

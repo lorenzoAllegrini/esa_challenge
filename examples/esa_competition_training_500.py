@@ -73,7 +73,7 @@ def esa_scorer(y_val, y_pred, benchmark):
 
 def main():
     parser = argparse.ArgumentParser(description="ESA competition training")
-    parser.add_argument("--run-id", default="esa_training")
+    parser.add_argument("--run-id", default="esa_training_500")
     parser.add_argument("--exp-dir", default="experiments")
     parser.add_argument("--data-root", default="datasets")
     args = parser.parse_args()
@@ -88,7 +88,7 @@ def main():
         num_kernels=num_kernels,
         segment_duration=segment_duration,
         step_duration=step_duration,
-        run_id="esa_training", 
+        run_id="esa_training_500", 
         exp_dir="experiments",
         skip=False
     )
@@ -102,7 +102,7 @@ def main():
         pooling_segment_len=20,
         pooling_segment_stride=2,
         poolings=["max", "min"],
-        run_id="esa_training", 
+        run_id="esa_training_500", 
         exp_dir="experiments", 
         use_shapelets=True
     )
